@@ -38,24 +38,24 @@ SITE = {
 PLANS = [
     {
         "name": "Solo",
-        "for": "Freelancers and in-house marketers",
+        "for": "Individual professionals and consultants",
         "price": "₹799",
         "channels": "10 channels",
-        "items": ["1 workspace, up to 3 clients", "10 connected channels", "Unlimited scheduled posts", "2 team seats"],
+        "items": ["Up to 3 brand workspaces", "10 connected channels", "Unlimited scheduled posts", "2 team seats"],
         "cta": "Start free trial",
     },
     {
         "name": "Agency",
-        "for": "Agencies managing client brands",
+        "for": "Agencies and multi-brand businesses",
         "price": "₹2,499",
         "channels": "50 channels",
-        "items": ["Unlimited clients", "50 connected channels", "Unlimited team seats", "Unlimited client approval links", "Proof-of-publish reports per client"],
+        "items": ["Unlimited brand workspaces", "50 connected channels", "Unlimited team seats", "Unlimited approval links", "Proof-of-publish reports per brand"],
         "cta": "Start free trial",
         "featured": True,
     },
     {
         "name": "Scale",
-        "for": "Larger agencies and networks",
+        "for": "Large agencies, groups and franchises",
         "price": "₹5,999",
         "channels": "200 channels",
         "items": ["Everything in Agency", "200 connected channels", "Priority support, 4-hour response", "Onboarding call"],
@@ -118,6 +118,7 @@ def header(home=True):
   <div class="wrap">
     <a class="logo" href="/" aria-label="Surecast home"><img src="/brand/Surecast-Logo-Horizontal-Color.svg" alt="Surecast" width="145" height="30"></a>
     <nav class="nav" aria-label="Main">
+      <a href="{p}#who">Who it's for</a>
       <a href="{p}#features">Features</a>
       <a href="{p}#how">How it works</a>
       <a href="{p}#compare">Compare</a>
@@ -200,14 +201,14 @@ def legal(path, title, description, intro, content):
 # ---------------------------------------------------------------------------
 
 FEATURES = [
+    ("sc-client", "A workspace for every brand", "Each brand gets its own workspace, social accounts, team access, calendar and reports. Nothing leaks between brands.", True),
     ("sc-retry", "Automatic retry", "Rate limits, timeouts and platform hiccups are retried with backoff. Every attempt is logged, so you can see exactly what happened.", True),
-    ("sc-health", "Pre-flight checks", "Fifteen minutes before each slot we check the token, the media and the text limits. Problems reach you before the post is due, not after.", True),
+    ("sc-health", "Pre-flight checks", "Fifteen minutes before each slot we check the token, the media and the text limits. Problems reach you before the post is due, and a watchdog flags any slot that was missed.", False),
     ("sc-token-alert", "Token-expiry alerts", "Connections that are about to expire are flagged days ahead, with a one-click reconnect. No more silent disconnects.", True),
     ("sc-failed", "Failures in plain language", "Instead of an error code you get the cause and the fix, for example: Instagram token expired, reconnect this channel.", False),
-    ("sc-scheduled", "Missed-slot watchdog", "Anything that should have gone out and has not is caught and raised, even if the platform never replied.", False),
-    ("sc-analytics", "One health dashboard", "Posts out today, failures that need action and channels at risk, across every client, on one screen.", False),
-    ("sc-approval", "Client approvals", "Send a link and your client approves or requests changes. No login, no extra seat, no extra cost.", False),
-    ("sc-proof-report", "Proof-of-publish reports", "A monthly report per client listing every post, when it went out and its live link. Share it or print it.", False),
+    ("sc-analytics", "One health dashboard", "Posts out today, failures that need action and channels at risk, across every brand workspace, on one screen.", False),
+    ("sc-approval", "Approvals without seats", "Send a link and your client, brand manager or boss approves or requests changes. No login, no extra seat, no extra cost.", False),
+    ("sc-proof-report", "Proof-of-publish reports", "A monthly report per brand listing every post, when it went out and its live link. Share it or print it.", False),
     ("sc-ai-draft", "AI drafting and API", "Draft and adapt captions per platform with AI, and plug Surecast into your own tools with the API and webhooks.", False),
 ]
 
@@ -215,7 +216,7 @@ FAQ = [
     ("Which platforms does Surecast support?", "Bluesky, Mastodon and Telegram channels work today. LinkedIn, Facebook Pages, Instagram Business and X are built and are being switched on as each platform completes its app review. TikTok, YouTube, Threads, Pinterest and Google Business Profile are next."),
     ("What happens when a post fails?", "Temporary errors such as rate limits or timeouts are retried automatically. If a post cannot go out, for example because a token expired, it stops at once and you get an email with the reason and the fix. The attempt log on the post shows every try."),
     ("Is there a free trial?", "Yes. Every plan starts with a 14-day free trial with all features. You will not be charged until the trial ends, and you can cancel at any time before that."),
-    ("Do you charge per social account?", "No. Each plan includes a fixed number of channels and unlimited posts. Client approval links never use a seat."),
+    ("Do you charge per social account?", "No. Each plan includes a fixed number of channels and unlimited posts. Approval links never use a seat."),
     ("Can I cancel any time?", "Yes. Cancel from Billing in the app. Your plan stays active until the end of the period you paid for and does not renew. See our cancellation and refund policy for details."),
     ("Where is my data stored?", "Your workspace data and media are stored on our servers and are never sold. You can export or delete your data at any time. Read the privacy policy for the full picture."),
     ("How do I pay?", "We accept UPI, debit and credit cards, net banking and wallets through Razorpay. Prices are in Indian Rupees and GST is added at checkout where it applies."),
@@ -244,12 +245,12 @@ def home():
     faq = "\n".join(f"<details><summary>{escape(q)}</summary><p>{escape(a)}</p></details>" for q, a in FAQ)
 
     compare_rows = [
-        ("Pricing", "Flat plans with a set number of channels", "Often per account or per seat, so cost climbs with every client"),
-        ("Client approvals", "Unlimited approval links, no seat needed", "Usually needs a paid seat or a higher tier"),
+        ("Pricing", "Flat plans with a set number of channels", "Often per account or per seat, so cost climbs with every brand you add"),
+        ("Approvals", "Unlimited approval links, no seat needed", "Usually needs a paid seat or a higher tier"),
         ("Before the slot", "Pre-flight check on token, media and text limits", "Problems surface only when the post fails"),
         ("When a post fails", "Automatic retry, full attempt log, plain-language fix", "A generic error, sometimes with no alert at all"),
         ("Expiring connections", "Alerts days ahead with one-click reconnect", "Found out when posts stop going out"),
-        ("Proof for clients", "Monthly proof-of-publish report with live links", "Screenshots or manual spreadsheets"),
+        ("Proof of work", "Monthly proof-of-publish report with live links", "Screenshots or manual spreadsheets"),
         ("API and webhooks", "Included on every plan", "Often locked to the top tier"),
     ]
     rows = "\n".join(
@@ -261,9 +262,9 @@ def home():
 <section class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Social media scheduling for agencies</span>
+      <span class="eyebrow">Social media scheduling for agencies and multi-brand teams</span>
       <h1>Every post goes out. <span class="accent">Or you know why.</span></h1>
-      <p class="lede">Surecast is the reliability-first scheduler for agencies and social media teams. Automatic retries, pre-flight checks, expiry alerts and proof-of-publish reports for every client.</p>
+      <p class="lede">Surecast is the reliability-first scheduler for agencies, professionals and multi-brand businesses. Every brand gets its own workspace and its own social accounts, with automatic retries, pre-flight checks, expiry alerts and proof-of-publish reports.</p>
       <div class="hero-ctas">
         <a class="btn btn-primary" href="{link_app('/signup')}">Start your 14-day free trial</a>
         <a class="btn btn-ghost" href="#how">See how it works</a>
@@ -300,13 +301,27 @@ def home():
   <div class="wrap">
     <div class="section-head">
       <span class="kicker">The problem</span>
-      <h2>Schedulers fail quietly. Your clients notice first.</h2>
-      <p>Most tools treat publishing as a solved problem. Anyone running client accounts knows it is not.</p>
+      <h2>Schedulers fail quietly. Your audience notices first.</h2>
+      <p>Most tools treat publishing as a solved problem. Anyone running more than one brand knows it is not.</p>
     </div>
     <div class="problem-grid">
-      <div class="problem"><span class="num">01</span><h3>Silent failures</h3><p>A token expires or a platform times out, and the post simply does not go out. Nobody is told until the client asks.</p></div>
-      <div class="problem"><span class="num">02</span><h3>Pricing that punishes growth</h3><p>Per-account and per-seat pricing means every new client makes your tools more expensive, not your agency more profitable.</p></div>
-      <div class="problem"><span class="num">03</span><h3>No proof of work</h3><p>When a client asks what went out last month, you are stuck stitching together screenshots from five platforms.</p></div>
+      <div class="problem"><span class="num">01</span><h3>Silent failures</h3><p>A token expires or a platform times out, and the post simply does not go out. Nobody is told until someone asks where the post went.</p></div>
+      <div class="problem"><span class="num">02</span><h3>Pricing that punishes growth</h3><p>Per-account and per-seat pricing means every new brand or client makes your tools more expensive, not your business more profitable.</p></div>
+      <div class="problem"><span class="num">03</span><h3>No proof of work</h3><p>When a client or manager asks what went out last month, you are stuck stitching together screenshots from five platforms.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="who">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Who it is for</span>
+      <h2>Built for people who post for more than one brand.</h2>
+    </div>
+    <div class="problem-grid">
+      <div class="problem"><span class="num">Agencies</span><h3>Every client, kept apart</h3><p>One workspace per client brand, with its own accounts, approvers and monthly proof report. Add clients without adding cost per account.</p></div>
+      <div class="problem"><span class="num">Professionals</span><h3>Your brand and your clients'</h3><p>Consultants and freelancers run their own brand and a few client brands from one login, each in its own workspace.</p></div>
+      <div class="problem"><span class="num">Multi-brand businesses</span><h3>Every brand on one dashboard</h3><p>Groups, franchises and product companies keep each brand's accounts and team separate, and see the health of all of them in one place.</p></div>
     </div>
   </div>
 </section>
@@ -331,8 +346,8 @@ def home():
       <h2>Set it up once. Stop checking.</h2>
     </div>
     <div class="steps">
-      <div class="step"><h3>Connect your clients</h3><p>Add each client and connect their channels. Surecast starts watching the health of every connection straight away.</p></div>
-      <div class="step"><h3>Compose and schedule</h3><p>Write once, adjust per platform, send for approval and drop it on the calendar in the client's own time zone.</p></div>
+      <div class="step"><h3>Add a workspace per brand</h3><p>Create a workspace for each brand or client and connect its own social accounts. Surecast starts watching the health of every connection straight away.</p></div>
+      <div class="step"><h3>Compose and schedule</h3><p>Write once, adjust per platform, send for approval and drop it on the calendar in each brand's own time zone.</p></div>
       <div class="step"><h3>Know what happened</h3><p>Posts go out with retries and pre-flight checks behind them. If something needs you, you hear about it first, with the fix.</p></div>
     </div>
   </div>
@@ -343,7 +358,7 @@ def home():
     <div class="section-head">
       <span class="kicker">Compare</span>
       <h2>Surecast and the usual schedulers.</h2>
-      <p>Tools like Publer, Postiz and Postly are good at calendars. Surecast is built for the part that hurts agencies most: knowing every post landed.</p>
+      <p>Tools like Publer, Postiz and Postly are good at calendars. Surecast is built for the part that hurts multi-brand teams most: knowing every post landed.</p>
     </div>
     <div class="table-wrap">
       <table class="compare">
@@ -395,7 +410,7 @@ def home():
 </section>
 """
     return page("/", "Surecast | Every post goes out. Or you know why.",
-                "Surecast is the reliability-first social media scheduler for agencies: automatic retries, pre-flight checks, token-expiry alerts and proof-of-publish reports.",
+                "Surecast is the reliability-first social media scheduler for agencies and multi-brand businesses, with a workspace per brand: automatic retries, pre-flight checks, token-expiry alerts and proof-of-publish reports.",
                 body, home=True)
 
 
