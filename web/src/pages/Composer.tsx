@@ -303,6 +303,11 @@ export function Composer() {
                   {media.map((m) => (
                     <div key={m.id} className="thumb">
                       <MediaThumb m={m} />
+                      {m.storage === 'drive' && (
+                        <span className="drive" title="Saved in your Google Drive">
+                          Drive
+                        </span>
+                      )}
                       <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove media">
                         <X size={13} />
                       </button>

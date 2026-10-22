@@ -47,6 +47,7 @@ The OAuth redirect URLs to register with each developer app are:
 - `https://app.surecast.live/v1/oauth/pinterest/callback`
 - `https://app.surecast.live/v1/oauth/google/callback`
 - `https://app.surecast.live/v1/oauth/youtube/callback` (same Google app)
+- `https://app.surecast.live/v1/oauth/gdrive/callback` (same Google app; Google Drive media storage, `drive.file` scope, Google Drive API enabled)
 - `https://app.surecast.live/v1/oauth/tiktok/callback`
 - `https://app.surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
 

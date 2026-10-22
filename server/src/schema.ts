@@ -447,4 +447,8 @@ export const MIGRATIONS: string[][] = [
       PRIMARY KEY (media_id, seq)
     ) ${T}`,
   ],
+  [
+    // Workspaces can keep their media in their own Google Drive (an integration of kind 'gdrive').
+    `ALTER TABLE media ADD COLUMN drive_file_id VARCHAR(128) NULL`,
+  ],
 ];

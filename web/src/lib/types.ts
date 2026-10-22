@@ -40,7 +40,7 @@ export type Channel = {
   lastOkAt: string | null;
 };
 
-export type Media = { id: string; url: string; mime: string; alt: string; filename: string; size: number };
+export type Media = { id: string; url: string; mime: string; alt: string; filename: string; size: number; storage?: 'drive' | 'surecast' };
 
 export type Attempt = { number: number; startedAt: string; finishedAt: string | null; outcome: string; code: string | null; httpStatus: number | null; message: string | null };
 

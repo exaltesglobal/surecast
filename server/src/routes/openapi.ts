@@ -132,6 +132,9 @@ const OPS: Op[] = [
     body: [['apiKey', 'string', 'chk_live_...', true], ['clientId', 'string', ''], ['settings', 'object', '{ alertPhones, alerts, approvals, approvalTemplate, alertTemplate }']],
   },
 
+  { method: 'get', path: '/integrations/google-drive', tag: 'Integrations', summary: 'Whether this workspace keeps its media in Google Drive, and the connected account.' },
+  { method: 'delete', path: '/integrations/google-drive', tag: 'Integrations', summary: 'Disconnects Google Drive. Files used by posts that have not gone out yet are copied back into Surecast first.' },
+
   { method: 'get', path: '/webhooks', tag: 'Webhooks', summary: 'Outgoing webhooks.' },
   { method: 'post', path: '/webhooks', tag: 'Webhooks', summary: 'Adds a webhook. Events: post.published, post.failed, client.paused, client.resumed, ping.', body: [['url', 'string', 'https://...', true]] },
 ];
