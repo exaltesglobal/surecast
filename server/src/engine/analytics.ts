@@ -99,7 +99,7 @@ const GENERAL = [
 /** The best weekly posting times for a client, from their own results when there are enough. */
 export async function bestTimes(workspaceId: string, clientId: string) {
   const client = await one<{ timezone: string }>('SELECT timezone FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]);
-  if (!client) throw new HttpError(404, 'Client not found.');
+  if (!client) throw new HttpError(404, 'Brand not found.');
   const now = new Date();
   const rows = await targets(workspaceId, addMs(now, -90 * DAY), now, clientId);
   const { measured, cells } = rankSlots(rows, client.timezone);
@@ -122,7 +122,7 @@ export async function analytics(workspaceId: string, opts: { clientId?: string; 
   let timezone = (await one<{ timezone: string }>('SELECT timezone FROM workspaces WHERE id = ?', [workspaceId]))?.timezone ?? 'UTC';
   if (opts.clientId) {
     const c = await one<{ timezone: string }>('SELECT timezone FROM clients WHERE id = ? AND workspace_id = ?', [opts.clientId, workspaceId]);
-    if (!c) throw new HttpError(404, 'Client not found.');
+    if (!c) throw new HttpError(404, 'Brand not found.');
     timezone = c.timezone;
   }
   const now = new Date();

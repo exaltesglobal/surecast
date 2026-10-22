@@ -35,8 +35,8 @@ export function PostsPage() {
           <Link to="/posts/import" className="btn">
             <FileUp size={15} /> Import CSV
           </Link>
-          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
-            <option value="">All clients</option>
+          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Brand">
+            <option value="">All brands</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -97,7 +97,7 @@ export function PostsPage() {
         </div>
       ) : (
         <div className="card">
-          <Empty title={tab === 'attention' ? 'Nothing needs action' : 'No posts here yet'}>{tab === 'attention' ? 'Failed posts and client change requests will show up here.' : <Link to="/posts/new">Write a post</Link>}</Empty>
+          <Empty title={tab === 'attention' ? 'Nothing needs action' : 'No posts here yet'}>{tab === 'attention' ? 'Failed posts and reviewer change requests will show up here.' : <Link to="/posts/new">Write a post</Link>}</Empty>
         </div>
       )}
     </>

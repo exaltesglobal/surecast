@@ -108,7 +108,7 @@ export const channelRoutes = new Hono<Env>()
   .post('/channels/connect', async (c) => {
     const b = await body(c);
     const client = await one<{ id: string }>('SELECT id FROM clients WHERE id = ? AND workspace_id = ?', [b.clientId, c.get('workspaceId')]);
-    if (!client) throw new HttpError(404, 'Client not found.');
+    if (!client) throw new HttpError(404, 'Brand not found.');
     const a = adapter(String(b.platform));
     if (!a.available()) throw new HttpError(409, a.unavailableReason ?? `${a.label} is not available yet.`);
     const values = (b.values && typeof b.values === 'object' ? b.values : {}) as Record<string, string>;

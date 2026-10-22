@@ -156,7 +156,7 @@ function IdeasModal({ moment, onClose, clients }: { moment: Moment; onClose: () 
     setError(null);
     try {
       const r = await api<{ ideas: Idea[] }>('/ai/ideas', {
-        body: { clientId, count: 6, topic: `${moment.name} on ${moment.date}${moment.note ? ` (${moment.note})` : ''}. Ideas that fit this client naturally; skip a forced tie-in.` },
+        body: { clientId, count: 6, topic: `${moment.name} on ${moment.date}${moment.note ? ` (${moment.note})` : ''}. Ideas that fit this brand naturally; skip a forced tie-in.` },
       });
       setIdeas(r.ideas);
     } catch (e) {
@@ -168,7 +168,7 @@ function IdeasModal({ moment, onClose, clients }: { moment: Moment; onClose: () 
   return (
     <Modal title={`Ideas for ${moment.name}`} onClose={onClose}>
       <div className="row" style={{ flexWrap: 'nowrap' }}>
-        <select className="input" value={clientId} onChange={(e) => (setClientId(e.target.value), setIdeas(null))} aria-label="Client">
+        <select className="input" value={clientId} onChange={(e) => (setClientId(e.target.value), setIdeas(null))} aria-label="Brand">
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -225,9 +225,9 @@ function AddMoment({ clients, onClose, onDone }: { clients: { id: string; name: 
         <input className="input" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
       </label>
       <label className="field">
-        Client <span className="hint">Optional</span>
+        Brand <span className="hint">Optional</span>
         <select className="input" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
-          <option value="">Every client</option>
+          <option value="">Every brand</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

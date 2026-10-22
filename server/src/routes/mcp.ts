@@ -24,7 +24,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const TOOLS: Tool[] = [
   {
     name: 'list_clients',
-    description: 'Lists the agency’s clients with their time zone, approval setting and connected channels. Start here: most other tools need a client_id.',
+    description: 'Lists the workspace’s brands with their time zone, approval setting and connected channels. Start here: most other tools need a client_id.',
     inputSchema: schema({}),
     annotations: READ,
     async run(_a, { workspaceId }) {
@@ -43,14 +43,14 @@ const TOOLS: Tool[] = [
   {
     name: 'create_post',
     description:
-      'Creates a post for a client on one or more of their channels. "when" is "now", "queue" (the next free posting time), "draft", or an ISO 8601 date-time such as 2026-11-05T09:30:00+05:30. ' +
+      'Creates a post for a brand on one or more of their channels. "when" is "now", "queue" (the next free posting time), "draft", or an ISO 8601 date-time such as 2026-11-05T09:30:00+05:30. ' +
       'Every channel’s length and format rules are checked first; if a channel cannot take the post, nothing is saved and the problems are returned. ' +
-      'If the client approves posts, scheduled posts wait for their approval.',
+      'If the brand needs approval, scheduled posts wait for the approver.',
     inputSchema: schema(
       {
-        client_id: str('The client, from list_clients.'),
+        client_id: str('The brand, from list_clients.'),
         text: str('The post text.'),
-        channel_ids: { type: 'array', items: { type: 'string' }, description: 'Channel ids; leave out to use all of the client’s connected channels.' },
+        channel_ids: { type: 'array', items: { type: 'string' }, description: 'Channel ids; leave out to use all of the brand’s connected channels.' },
         when: str('"now", "queue", "draft" or an ISO 8601 date-time with an offset.'),
         thread: { type: 'array', items: { type: 'string' }, description: 'Optional follow-up parts, posted as a thread on X, Bluesky, Mastodon, Threads and Telegram.' },
         first_comment: str('Optional comment posted under the post right after it goes out.'),
@@ -71,7 +71,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'list_posts',
-    description: 'Lists posts, newest scheduled time first. Filter by client and status (draft, awaiting_approval, scheduled, published, partial, failed).',
+    description: 'Lists posts, newest scheduled time first. Filter by brand and status (draft, awaiting_approval, scheduled, published, partial, failed).',
     inputSchema: schema({ client_id: str('Optional client.'), status: str('Optional status.'), limit: { type: 'integer', minimum: 1, maximum: 100 } }),
     annotations: READ,
     async run(a, { workspaceId }) {
@@ -107,7 +107,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'next_free_slot',
-    description: 'The next free posting time for a client, from their weekly posting times.',
+    description: 'The next free posting time for a brand, from their weekly posting times.',
     inputSchema: schema({ client_id: str('The client.') }, ['client_id']),
     annotations: READ,
     async run(a, { workspaceId }) {
@@ -118,7 +118,7 @@ const TOOLS: Tool[] = [
   {
     name: 'get_analytics',
     description: 'Results for a period: posts delivered, likes, comments, shares, link clicks and followers, with the previous period, per network, and the top posts.',
-    inputSchema: schema({ client_id: str('Optional client; leave out for the whole agency.'), days: { type: 'integer', minimum: 1, maximum: 365 } }),
+    inputSchema: schema({ client_id: str('Optional brand; leave out for the whole workspace.'), days: { type: 'integer', minimum: 1, maximum: 365 } }),
     annotations: READ,
     async run(a, { workspaceId }) {
       const r = await analytics(workspaceId, { clientId: a.client_id || undefined, days: Number(a.days) || 30 });
@@ -127,7 +127,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'best_posting_times',
-    description: 'The weekly times when a client’s audience responds best, from their own results (or common good times until there is enough data).',
+    description: 'The weekly times when a brand’s audience responds best, from their own results (or common good times until there is enough data).',
     inputSchema: schema({ client_id: str('The client.') }, ['client_id']),
     annotations: READ,
     run: (a, { workspaceId }) => bestTimes(workspaceId, a.client_id),
@@ -144,7 +144,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'reply_to_comment',
-    description: 'Publicly replies to a comment from list_inbox, as the client, and marks it handled. Check the wording with the person first.',
+    description: 'Publicly replies to a comment from list_inbox, as the brand, and marks it handled. Check the wording with the person first.',
     inputSchema: schema({ item_id: str('The inbox item id.'), text: str('The reply.') }, ['item_id', 'text']),
     annotations: { destructiveHint: false, openWorldHint: true },
     async run(a, { workspaceId, user }) {
@@ -154,7 +154,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'draft_posts_with_ai',
-    description: 'Writes three post options from a short brief in the client’s saved brand voice, sized for the chosen networks. Nothing is saved; pass the one you like to create_post.',
+    description: 'Writes three post options from a short brief in the saved brand voice, sized for the chosen networks. Nothing is saved; pass the one you like to create_post.',
     inputSchema: schema({ client_id: str('The client.'), brief: str('What the post is about.'), networks: { type: 'array', items: { type: 'string' } } }, ['client_id', 'brief']),
     annotations: READ,
     async run(a, { workspaceId }) {
@@ -165,7 +165,7 @@ const TOOLS: Tool[] = [
   {
     name: 'pause_client',
     description:
-      'Emergency brake: holds every post for a client that has not gone out yet, on every network, until resumed. Use it for a crisis, a bereavement or a recall. ' +
+      'Emergency brake: holds every post for a brand that has not gone out yet, on every network, until resumed. Use it for a crisis, a bereavement or a recall. ' +
       'Optionally resume automatically at an ISO 8601 time. "missed" decides what happens to slots that pass while paused: "skip" (default), "post_now" or "queue".',
     inputSchema: schema({ client_id: str('The client.'), reason: str('Why, for the team.'), until: str('Optional ISO 8601 time to resume automatically.'), missed: str('"skip", "post_now" or "queue".') }, ['client_id', 'reason']),
     annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -184,12 +184,12 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'check_brand_guard',
-    description: 'Checks text against a client’s brand safety rules (words they never allow, lines they always need, such as an ad disclosure). Run it before create_post.',
+    description: 'Checks text against a brand’s safety rules (words they never allow, lines they always need, such as an ad disclosure). Run it before create_post.',
     inputSchema: schema({ client_id: str('The client.'), text: str('The post text.') }, ['client_id', 'text']),
     annotations: READ,
     async run(a, { workspaceId }) {
       const c = await one<{ guard: string | null }>('SELECT guard FROM clients WHERE id = ? AND workspace_id = ?', [String(a.client_id), workspaceId]);
-      if (!c) throw new HttpError(404, 'Client not found.');
+      if (!c) throw new HttpError(404, 'Brand not found.');
       const guard = parseGuard(c.guard);
       const issues = guardIssues(guard, String(a.text ?? ''));
       return { ok: !issues.length, mode: guard.mode, issues, rules: guard };
@@ -209,7 +209,7 @@ const TOOLS: Tool[] = [
   {
     name: 'create_campaign_from_url',
     description:
-      'Reads a web page (a product, article or event) and writes a campaign of 2 to 14 posts about it in the client’s voice, saved as drafts or into the client’s queue. ' +
+      'Reads a web page (a product, article or event) and writes a campaign of 2 to 14 posts about it in the brand’s voice, saved as drafts or into the brand’s queue. ' +
       'Needs the writing assistant to be switched on.',
     inputSchema: schema(
       {
@@ -265,7 +265,7 @@ async function handle(req: RpcRequest, ctx: Ctx) {
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'surecast', title: 'Surecast', version: '1.0.0' },
         instructions:
-          'Surecast schedules and publishes social media posts for an agency’s clients and proves they went out. Call list_clients first. ' +
+          'Surecast schedules and publishes social media posts for a workspace’s brands and proves they went out. Call list_clients first. ' +
           'Posts are checked against every network’s rules before they are saved. Confirm wording and timing with the person before creating or replying publicly.',
       });
     }

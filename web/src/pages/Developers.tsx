@@ -58,7 +58,7 @@ curl ${base}/posts \\
               <h3 style={{ margin: 0 }}>2. Connect an AI agent (MCP)</h3>
             </div>
             <p className="small muted" style={{ margin: 0 }}>
-              Surecast is an MCP server. Claude, ChatGPT, Cursor and other agents can list clients, write and schedule posts, check the brand guard, pull the emergency brake, plan around holidays, turn a link into a campaign and answer the inbox.
+              Surecast is an MCP server. Claude, ChatGPT, Cursor and other agents can list brands, write and schedule posts, check the brand guard, pull the emergency brake, plan around holidays, turn a link into a campaign and answer the inbox.
             </p>
             <label className="field">
               Server URL

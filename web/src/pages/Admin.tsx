@@ -213,7 +213,7 @@ function Workspaces({ can, plans }: { can: (p: string) => boolean; plans: AdminM
               <tr>
                 <th>Workspace</th>
                 <th>Plan</th>
-                <th className="num">Clients</th>
+                <th className="num">Brands</th>
                 <th className="num">Channels</th>
                 <th className="num">Failed 7d</th>
                 <th>Last active</th>
@@ -298,7 +298,7 @@ function WorkspaceModal({ id, can, plans, onClose, onChanged }: { id: string; ca
         <dd>{w.owner ?? '–'}</dd>
         <dt>Created</dt>
         <dd>{fmt(w.createdAt, undefined, { dateStyle: 'medium' })}</dd>
-        <dt>Clients</dt>
+        <dt>Brands</dt>
         <dd>
           {w.clients} of {w.clientLimit ?? 'unlimited'}
         </dd>
@@ -403,7 +403,7 @@ function WorkspaceModal({ id, can, plans, onClose, onChanged }: { id: string; ca
           <span className="pill neutral">{m.role}</span>
         </div>
       ))}
-      <strong className="small">Clients and channels</strong>
+      <strong className="small">Brands and channels</strong>
       {data.clients.map((c) => (
         <div key={c.id} className="small">
           {c.name} {c.pausedAt && <Pill status="paused" />} {c.archivedAt && <span className="tiny muted">archived</span>}

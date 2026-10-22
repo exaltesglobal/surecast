@@ -20,7 +20,7 @@ type ClientRow = Row & { id: string; workspace_id: string; name: string; timezon
 
 async function client(workspaceId: string, clientId: string) {
   const c = await one<ClientRow>('SELECT * FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]);
-  if (!c) throw new HttpError(404, 'Client not found.');
+  if (!c) throw new HttpError(404, 'Brand not found.');
   return c;
 }
 
@@ -72,7 +72,7 @@ export async function pauseClient(
     kind: 'client_paused',
     severity: 'info',
     title: `Publishing for ${c.name} is paused`,
-    detail: [reason, until ? `Resumes automatically at ${until.toISOString().slice(0, 16).replace('T', ' ')} UTC.` : 'Resume it from the client page.'].filter(Boolean).join(' '),
+    detail: [reason, until ? `Resumes automatically at ${until.toISOString().slice(0, 16).replace('T', ' ')} UTC.` : 'Resume it from the brand page.'].filter(Boolean).join(' '),
     clientId: c.id,
   });
   await emitEvent(workspaceId, 'client.paused', { client_id: c.id, reason, until: until?.toISOString() ?? null, held, by: user?.email ?? opts.by });
@@ -138,7 +138,7 @@ export async function autoResume(now = new Date()) {
         key: `client:${c.id}:resume`,
         kind: 'client_resumed',
         severity: 'warning',
-        title: 'A paused client resumed, but missed posts could not be queued',
+        title: 'A paused brand resumed, but missed posts could not be queued',
         detail: clip(`${(e as Error).message} ${r.skipped} missed posts were skipped instead.`, 900) ?? undefined,
         clientId: c.id,
       });

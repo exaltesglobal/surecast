@@ -34,7 +34,7 @@ const strArray = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =
 export async function getClient(workspaceId: string, clientId: unknown) {
   if (typeof clientId !== 'string') throw new HttpError(422, 'Choose a client.');
   const client = await one<ClientRow>('SELECT * FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]);
-  if (!client) throw new HttpError(404, 'Client not found.');
+  if (!client) throw new HttpError(404, 'Brand not found.');
   return client;
 }
 
@@ -205,7 +205,7 @@ export async function requestApproval(client: ClientRow, postId: string, user: A
     postId,
     user?.name || user?.email || 'Surecast',
     'approval_requested',
-    'Sent for client approval.',
+    'Sent for approval.',
     new Date(),
   ]);
   const url = `${config.publicUrl}/c/${client.share_token}`;
@@ -229,7 +229,7 @@ export async function decideApproval(postId: string, clientId: string, decision:
   await run('INSERT INTO post_comments (id, post_id, author_name, from_client, kind, body, created_at) VALUES (?, ?, ?, 1, ?, ?, ?)', [
     newId('cmt'),
     postId,
-    name.slice(0, 120) || 'Client',
+    name.slice(0, 120) || 'Brand',
     decision,
     comment.slice(0, 5000) || (decision === 'approved' ? 'Approved.' : 'Changes requested.'),
     now,
@@ -245,7 +245,7 @@ export async function decideApproval(postId: string, clientId: string, decision:
       key: `post:${postId}:changes`,
       kind: 'changes_requested',
       severity: 'warning',
-      title: `${client?.name ?? 'A client'} asked for changes to a post`,
+      title: `A reviewer for ${client?.name ?? 'a brand'} asked for changes to a post`,
       detail: comment.slice(0, 900) || undefined,
       clientId,
       postId,

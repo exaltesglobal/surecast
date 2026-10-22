@@ -26,7 +26,7 @@ export const agencyRoutes = new Hono<Env>()
   .post('/guard/check', requireUser, async (c) => {
     const b = await body(c);
     const client = await one<{ guard: string | null }>('SELECT guard FROM clients WHERE id = ? AND workspace_id = ?', [String(b.clientId ?? ''), c.get('workspaceId')]);
-    if (!client) throw new HttpError(404, 'Client not found.');
+    if (!client) throw new HttpError(404, 'Brand not found.');
     const guard = b.guard !== undefined ? cleanGuard(b.guard) : parseGuard(client.guard);
     const issues = guardIssues(guard, typeof b.text === 'string' ? b.text : '');
     return c.json({ ok: !issues.length, mode: guard.mode, issues });
@@ -35,12 +35,12 @@ export const agencyRoutes = new Hono<Env>()
   // Weekly client digest
   .get('/clients/:id/digest', requireUser, async (c) => {
     const client = await one('SELECT id, name, timezone, share_token FROM clients WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
-    if (!client) throw new HttpError(404, 'Client not found.');
+    if (!client) throw new HttpError(404, 'Brand not found.');
     return c.json(await digestFor(client as never));
   })
   .post('/clients/:id/digest/test', requireUser, async (c) => {
     const client = await one('SELECT id, name, timezone, share_token FROM clients WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
-    if (!client) throw new HttpError(404, 'Client not found.');
+    if (!client) throw new HttpError(404, 'Brand not found.');
     const d = await digestFor(client as never);
     const to = c.get('user')!.email;
     await sendEmail(to, `[Preview] ${d.subject}`, `${d.lines.join('\n\n')}\n\nSee everything: ${d.url}`, emailHtml(d.subject, d.lines, { label: 'See your posts', url: d.url }));

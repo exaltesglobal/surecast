@@ -119,7 +119,7 @@ export async function checkFeed(f: Row, now = new Date()) {
         kind: 'feed_failing',
         severity: 'warning',
         title: `The feed "${f.title || f.url}" could not be read for an hour`,
-        detail: `${message}. New articles will not be posted until it works again. Check the address in the client's Feeds section.`,
+        detail: `${message}. New articles will not be posted until it works again. Check the address in the brand's Feeds section.`,
         clientId: f.client_id,
       });
     return { created: 0 };

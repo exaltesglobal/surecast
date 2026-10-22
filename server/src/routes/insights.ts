@@ -9,7 +9,7 @@ import { monthRange } from '../util.js';
 /** Every post-to-channel in a month for one client, with when it went out and its live link. */
 export async function proofReport(clientId: string, month: string) {
   const client = await one<{ id: string; name: string; timezone: string; color: string; workspace_id: string }>('SELECT id, name, timezone, color, workspace_id FROM clients WHERE id = ?', [clientId]);
-  if (!client) throw new HttpError(404, 'Client not found.');
+  if (!client) throw new HttpError(404, 'Brand not found.');
   const ws = await one<{ name: string }>('SELECT name FROM workspaces WHERE id = ?', [client.workspace_id]);
   const range = monthRange(month, client.timezone);
   const rows = await all(
@@ -119,7 +119,7 @@ export const insightRoutes = new Hono<Env>()
   .get('/reports/proof', async (c) => {
     const clientId = c.req.query('client') ?? '';
     const own = await one('SELECT id FROM clients WHERE id = ? AND workspace_id = ?', [clientId, c.get('workspaceId')]);
-    if (!own) throw new HttpError(404, 'Client not found.');
+    if (!own) throw new HttpError(404, 'Brand not found.');
     return c.json(await proofReport(clientId, c.req.query('month') ?? ''));
   });
 

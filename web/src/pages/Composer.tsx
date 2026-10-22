@@ -136,7 +136,7 @@ export function Composer() {
           : action === 'now'
             ? 'Posting now'
             : r.post.status === 'awaiting_approval'
-              ? 'Sent to the client for approval'
+              ? 'Sent for approval'
               : action === 'queue'
                 ? `Added to the queue for ${new Date(r.post.scheduledAt!).toLocaleString(undefined, { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`
                 : 'Scheduled',
@@ -154,8 +154,8 @@ export function Composer() {
   if (!active.length)
     return (
       <div className="card">
-        <Empty title="Add a client first">
-          Posts belong to a client. <Link to="/clients?new=1">Add your first client</Link>.
+        <Empty title="Add a brand first">
+          Posts belong to a brand. <Link to="/clients?new=1">Add your first brand</Link>.
         </Empty>
       </div>
     );
@@ -175,9 +175,9 @@ export function Composer() {
         <div className="stack">
           <div className="card pad stack">
             <label className="field">
-              Client
+              Brand
               <select className="input" value={clientId} disabled={!!id} onChange={(e) => setClientId(e.target.value)}>
-                <option value="">Choose a client…</option>
+                <option value="">Choose a brand…</option>
                 {active.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -216,7 +216,7 @@ export function Composer() {
                 ) : (
                   <div className="banner info">
                     <div className="body">
-                      This client has no channels yet. <Link to={`/clients/${clientId}`}>Connect one</Link>.
+                      This brand has no channels yet. <Link to={`/clients/${clientId}`}>Connect one</Link>.
                     </div>
                   </div>
                 )}
@@ -384,7 +384,7 @@ export function Composer() {
             <div className="row">
               <input className="input" type="date" style={{ width: 'auto' }} value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
               <input className="input" type="time" style={{ width: 'auto' }} value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
-              {client?.approvalRequired && <span className="pill awaiting_approval">Needs client approval</span>}
+              {client?.approvalRequired && <span className="pill awaiting_approval">Needs approval</span>}
             </div>
             <ErrorBanner error={error} />
             <div className="row">
@@ -397,7 +397,7 @@ export function Composer() {
                 </button>
               )}
               {!!client?.queueSlots?.length && (
-                <button className="btn" disabled={!!busy || !selected.length || hasIssues} onClick={() => save('queue')} title="Next free posting time for this client">
+                <button className="btn" disabled={!!busy || !selected.length || hasIssues} onClick={() => save('queue')} title="Next free posting time for this brand">
                   {busy === 'queue' ? <Spinner /> : <CalendarPlus size={15} />} Add to queue
                 </button>
               )}

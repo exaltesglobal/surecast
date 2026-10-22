@@ -66,7 +66,7 @@ export async function verifyCode(c: Context, emailRaw: unknown, codeRaw: unknown
     const now = new Date();
     await run('INSERT INTO workspaces (id, name, timezone, trial_ends_at, created_at) VALUES (?, ?, ?, ?, ?)', [
       wsId,
-      user.name ? `${user.name.split(' ')[0]}'s agency` : 'My agency',
+      user.name ? `${user.name.split(' ')[0]}'s workspace` : 'My workspace',
       'UTC',
       addMs(now, TRIAL_DAYS * 86_400_000),
       now,

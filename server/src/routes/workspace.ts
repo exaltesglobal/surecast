@@ -1,7 +1,7 @@
 // Account, workspace settings, team, clients, API keys and webhooks.
 import { Hono } from 'hono';
 
-import { generateApiKey, HttpError, logout, requestCode, requireAdmin, requireUser, stopImpersonation, verifyCode, type Env } from '../auth.js';
+import { generateApiKey, HttpError, logout, requestCode, requireAdmin, requireUser, stopImpersonation, TRIAL_DAYS, verifyCode, type Env } from '../auth.js';
 import { config } from '../config.js';
 import { all, one, run } from '../db.js';
 import { activeAnnouncements, audit, PLANS, staffRole } from '../engine/admin.js';
@@ -60,7 +60,28 @@ export const accountRoutes = new Hono<Env>()
     const name = str((await body(c)).name, 120);
     await run('UPDATE users SET name = ? WHERE id = ?', [name, c.get('user')!.id]);
     return c.json({ ok: true });
+  })
+  // A person can run several workspaces: one per agency team, business unit or set of brands,
+  // each with its own brands, members, plan and billing.
+  .post('/workspaces', async (c) => {
+    const user = c.get('user');
+    if (!user) throw new HttpError(401, 'Sign in to continue.');
+    if (c.get('viaApiKey')) throw new HttpError(403, 'API keys belong to one workspace and cannot create others.');
+    if (c.get('impersonatedBy')) throw new HttpError(403, 'Stop viewing as this customer before creating a workspace.');
+    const b = await body(c);
+    const name = str(b.name, 120);
+    if (!name) throw new HttpError(422, 'Give the workspace a name.');
+    const owned = await one<{ n: number }>("SELECT COUNT(*) AS n FROM members WHERE user_id = ? AND role = 'owner'", [user.id]);
+    if (Number(owned?.n) >= MAX_OWNED_WORKSPACES) throw new HttpError(409, `You can own up to ${MAX_OWNED_WORKSPACES} workspaces. Write to hello@surecast.live if you need more.`);
+    const timezone = isTimeZone(b.timezone) ? b.timezone : 'UTC';
+    const id = newId('wsp');
+    const now = new Date();
+    await run('INSERT INTO workspaces (id, name, timezone, trial_ends_at, created_at) VALUES (?, ?, ?, ?, ?)', [id, name, timezone, new Date(now.getTime() + TRIAL_DAYS * 86_400_000), now]);
+    await run("INSERT INTO members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [id, user.id, now]);
+    return c.json({ workspace: { id, name, timezone, role: 'owner' } }, 201);
   });
+
+const MAX_OWNED_WORKSPACES = 20;
 
 export const workspaceRoutes = new Hono<Env>()
   .use(requireUser)
@@ -163,7 +184,7 @@ export const workspaceRoutes = new Hono<Env>()
   .post('/clients', async (c) => {
     const b = await body(c);
     const name = str(b.name, 120);
-    if (!name) throw new HttpError(422, 'Give the client a name.');
+    if (!name) throw new HttpError(422, 'Give the brand a name.');
     if (b.timezone && !isTimeZone(b.timezone)) throw new HttpError(422, 'Unknown time zone.');
     if (b.contactEmail && !isEmail(b.contactEmail)) throw new HttpError(422, 'The contact email is not valid.');
     const ws = await one<{ timezone: string; plan: string }>('SELECT timezone, plan FROM workspaces WHERE id = ?', [c.get('workspaceId')]);
@@ -217,13 +238,13 @@ export const workspaceRoutes = new Hono<Env>()
         c.get('workspaceId'),
       ],
     );
-    if (!n) throw new HttpError(404, 'Client not found.');
+    if (!n) throw new HttpError(404, 'Brand not found.');
     return c.json({ ok: true });
   })
   .post('/clients/:id/rotate-link', async (c) => {
     const t = token(18);
     const n = await run('UPDATE clients SET share_token = ? WHERE id = ? AND workspace_id = ?', [t, c.req.param('id'), c.get('workspaceId')]);
-    if (!n) throw new HttpError(404, 'Client not found.');
+    if (!n) throw new HttpError(404, 'Brand not found.');
     return c.json({ shareToken: t });
   })
 
