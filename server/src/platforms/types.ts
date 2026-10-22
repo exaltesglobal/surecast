@@ -1,7 +1,7 @@
 // Every social network is an adapter behind this interface. The publishing engine only
 // knows about adapters, so adding a network never touches the engine.
 
-export type Platform = 'bluesky' | 'mastodon' | 'telegram' | 'linkedin' | 'facebook' | 'instagram' | 'x' | 'threads' | 'pinterest' | 'google';
+export type Platform = 'bluesky' | 'mastodon' | 'telegram' | 'linkedin' | 'facebook' | 'instagram' | 'x' | 'threads' | 'pinterest' | 'google' | 'youtube' | 'tiktok';
 
 /**
  * How a failure should be handled:
@@ -58,6 +58,10 @@ export type Limits = {
   maxImageBytes: number;
   imageTypes: string[];
   requiresMedia?: boolean;
+  /** Video formats the network takes from Surecast. None means images only. */
+  videoTypes?: string[];
+  maxVideoBytes?: number;
+  requiresVideo?: boolean;
 };
 
 export type ConnectField = { name: string; label: string; type: 'text' | 'password' | 'url'; placeholder?: string; help?: string; required?: boolean };

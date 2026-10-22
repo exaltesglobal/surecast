@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { AltTextButton, Assistant, type AiStatus } from '../components/Assistant';
 import { Extras, SnippetPicker } from '../components/ComposerExtras';
 import { useApp } from '../components/Layout';
-import { Avatar, Empty, ErrorBanner, Loading, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
+import { Avatar, Empty, ErrorBanner, Loading, MediaThumb, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { utcToZoned, zonedToUtc } from '../lib/time';
@@ -302,8 +302,8 @@ export function Composer() {
                 <div className="thumbs">
                   {media.map((m) => (
                     <div key={m.id} className="thumb">
-                      <img src={m.url} alt={m.alt} />
-                      <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove image">
+                      <MediaThumb m={m} />
+                      <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove media">
                         <X size={13} />
                       </button>
                       {ai.data?.enabled && (
@@ -345,8 +345,8 @@ export function Composer() {
                     upload(e.dataTransfer.files);
                   }}
                 >
-                  {uploading ? <Spinner /> : <ImagePlus size={18} style={{ verticalAlign: -4 }} />} Add images (drop or click). JPEG, PNG, GIF or WebP up to 10 MB.
-                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden onChange={(e) => e.target.files && upload(e.target.files)} />
+                  {uploading ? <Spinner /> : <ImagePlus size={18} style={{ verticalAlign: -4 }} />} Add images or a video (drop or click). Images up to 10 MB; MP4, MOV or WebM video up to 100 MB.
+                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden onChange={(e) => e.target.files && upload(e.target.files)} />
                 </div>
               </div>
             </div>
@@ -428,7 +428,7 @@ export function Composer() {
                   {!!media.length && (
                     <div className="imgs" style={{ gridTemplateColumns: media.length > 1 ? '1fr 1fr' : '1fr' }}>
                       {media.slice(0, 4).map((m) => (
-                        <img key={m.id} src={m.url} alt={m.alt} />
+                        <MediaThumb key={m.id} m={m} />
                       ))}
                     </div>
                   )}

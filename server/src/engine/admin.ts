@@ -245,6 +245,7 @@ export async function deleteWorkspace(id: string, confirmName: unknown) {
   if (posts.length) await run('DELETE FROM post_comments WHERE post_id IN (?)', [posts]);
   if (clients.length) await run('DELETE FROM link_clicks WHERE client_id IN (?)', [clients]);
   if (channels.length) await run('DELETE FROM channel_stats WHERE channel_id IN (?)', [channels]);
+  await run('DELETE mc FROM media_chunks mc JOIN media m ON m.id = mc.media_id WHERE m.workspace_id = ?', [id]);
   // Every other table that belongs to a workspace has a workspace_id column.
   const tables = await all<{ t: string }>("SELECT TABLE_NAME AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'workspace_id' AND TABLE_NAME NOT IN ('audit_log', 'workspaces')");
   for (const { t } of tables) await run(`DELETE FROM \`${t}\` WHERE workspace_id = ?`, [id]);

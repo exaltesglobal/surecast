@@ -436,4 +436,15 @@ export const MIGRATIONS: string[][] = [
     // WhatsApp chats in the inbox have no post behind them.
     `ALTER TABLE inbox_items MODIFY target_id VARCHAR(24) NULL, MODIFY post_id VARCHAR(24) NULL`,
   ],
+  [
+    // Videos are too big for one row on shared MySQL (max_allowed_packet), so they are
+    // stored in 4 MB chunks. Images keep using media.data.
+    `ALTER TABLE media ADD COLUMN chunks INT NOT NULL DEFAULT 0`,
+    `CREATE TABLE media_chunks (
+      media_id VARCHAR(24) NOT NULL,
+      seq INT NOT NULL,
+      data LONGBLOB NOT NULL,
+      PRIMARY KEY (media_id, seq)
+    ) ${T}`,
+  ],
 ];

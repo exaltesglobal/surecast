@@ -2,7 +2,7 @@ import { CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 
-import { Empty, ErrorBanner, Loading, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
+import { Empty, ErrorBanner, Loading, MediaThumb, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { fmt } from '../lib/time';
 import type { Post } from '../lib/types';
@@ -139,7 +139,7 @@ function ApprovalCard({ post, tz, token, name, onDone }: { post: Post; tz: strin
         <div className="thumbs">
           {post.media.map((m) => (
             <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className="thumb">
-              <img src={m.url} alt={m.alt} />
+              <MediaThumb m={m} />
             </a>
           ))}
         </div>

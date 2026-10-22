@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { useApp } from '../components/Layout';
-import { Avatar, ErrorBanner, Loading, Pill, Spinner, useLoad, useToast } from '../components/ui';
+import { Avatar, ErrorBanner, Loading, MediaThumb, Pill, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { ago, fmt } from '../lib/time';
@@ -251,7 +251,7 @@ export function PostDetail() {
               <div className="thumbs">
                 {p.media.map((m) => (
                   <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className="thumb">
-                    <img src={m.url} alt={m.alt} />
+                    <MediaThumb m={m} />
                   </a>
                 ))}
               </div>

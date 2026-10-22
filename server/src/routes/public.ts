@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { HttpError, type Env } from '../auth.js';
 import { config } from '../config.js';
 import { all, one } from '../db.js';
+import { mediaData } from '../engine/content.js';
 import { decideApproval, postsJson } from '../engine/posts.js';
 import { lastTick, tick } from '../engine/publisher.js';
 import { proofReport } from './insights.js';
@@ -74,7 +75,7 @@ export const publicRoutes = new Hono<Env>()
 
 /** Public images, served under /m/<key>. Instagram fetches post images from these URLs. */
 export const mediaRoutes = new Hono().get('/m/:key', async (c) => {
-  const m = await one<{ data: Buffer; mime: string }>('SELECT data, mime FROM media WHERE public_key = ?', [c.req.param('key')]);
+  const m = await one<{ id: string; mime: string }>('SELECT id, mime FROM media WHERE public_key = ?', [c.req.param('key')]);
   if (!m) return c.text('Not found', 404);
-  return c.body(new Uint8Array(m.data), 200, { 'Content-Type': m.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+  return c.body(new Uint8Array(await mediaData(m.id)), 200, { 'Content-Type': m.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
 });

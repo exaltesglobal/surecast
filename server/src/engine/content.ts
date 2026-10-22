@@ -14,11 +14,28 @@ export function contentIssues(a: Adapter, text: string, media: Pick<MediaMeta, '
   const max = a.platform === 'telegram' && media.length ? 1024 : a.limits.maxChars;
   if (n > max) issues.push(`${a.label} allows ${max} characters${a.platform === 'telegram' && media.length ? ' with images' : ''}; this is ${n}.`);
   if (!text.trim() && !media.length) issues.push('The post is empty.');
-  if (a.limits.requiresMedia && !media.length) issues.push(`${a.label} posts need at least one image.`);
-  if (media.length > a.limits.maxImages) issues.push(`${a.label} allows up to ${a.limits.maxImages} images; this has ${media.length}.`);
-  for (const m of media) {
-    if (!a.limits.imageTypes.includes(m.mime)) issues.push(`${a.label} cannot use ${m.filename} (${m.mime.replace('image/', '').toUpperCase()}). Use ${a.limits.imageTypes.map((t) => t.replace('image/', '').toUpperCase()).join(', ')}.`);
-    if (m.size > a.limits.maxImageBytes) issues.push(`${m.filename} is ${(m.size / 1e6).toFixed(1)} MB; ${a.label} allows ${(a.limits.maxImageBytes / 1e6).toFixed(1)} MB.`);
+  const videos = media.filter((m) => m.mime.startsWith('video/'));
+  const images = media.filter((m) => !m.mime.startsWith('video/'));
+  if (a.limits.requiresVideo && !videos.length) issues.push(`${a.label} posts need a video.`);
+  else if (a.limits.requiresMedia && !media.length) issues.push(`${a.label} posts need at least one image.`);
+  if (videos.length) {
+    const types = a.limits.videoTypes ?? [];
+    if (!types.length) issues.push(`${a.label} posts from Surecast can't include videos yet. Use images, or leave ${a.label} out of this post.`);
+    else {
+      if (videos.length > 1 || images.length) issues.push(`${a.label} takes one video per post, without images.`);
+      for (const v of videos) {
+        if (!types.includes(v.mime)) issues.push(`${a.label} cannot use ${v.filename}. Use ${types.map((t) => t.replace('video/', '').replace('quicktime', 'MOV').toUpperCase()).join(' or ')}.`);
+        if (v.size > (a.limits.maxVideoBytes ?? 0)) issues.push(`${v.filename} is ${(v.size / 1e6).toFixed(0)} MB; ${a.label} allows ${((a.limits.maxVideoBytes ?? 0) / 1e6).toFixed(0)} MB.`);
+      }
+    }
+  }
+  if (images.length && a.limits.maxImages === 0) issues.push(`${a.label} posts can't include images; add a video instead.`);
+  else {
+    if (images.length > a.limits.maxImages) issues.push(`${a.label} allows up to ${a.limits.maxImages} images; this has ${images.length}.`);
+    for (const m of images) {
+      if (!a.limits.imageTypes.includes(m.mime)) issues.push(`${a.label} cannot use ${m.filename} (${m.mime.replace('image/', '').toUpperCase()}). Use ${a.limits.imageTypes.map((t) => t.replace('image/', '').toUpperCase()).join(', ')}.`);
+      if (m.size > a.limits.maxImageBytes) issues.push(`${m.filename} is ${(m.size / 1e6).toFixed(1)} MB; ${a.label} allows ${(a.limits.maxImageBytes / 1e6).toFixed(1)} MB.`);
+    }
   }
   return issues;
 }
@@ -39,12 +56,25 @@ export function mediaFiles(meta: MediaMeta[]): MediaFile[] {
     size: m.size,
     alt: m.alt,
     url: mediaUrl(m.public_key),
-    data: async () => {
-      const row = (await all<{ data: Buffer }>('SELECT data FROM media WHERE id = ?', [m.id]))[0];
-      if (!row) throw new Error(`Image ${m.filename} was deleted`);
-      return row.data;
-    },
+    data: () => mediaData(m.id, m.filename),
   }));
+}
+
+/** The bytes of an image or video, joining the chunks a video is stored in. */
+export async function mediaData(id: string, filename = 'file'): Promise<Buffer> {
+  const row = (await all<{ data: Buffer; chunks: number }>('SELECT data, chunks FROM media WHERE id = ?', [id]))[0];
+  if (!row) throw new Error(`${filename} was deleted`);
+  if (!row.chunks) return row.data;
+  const parts = await all<{ data: Buffer }>('SELECT data FROM media_chunks WHERE media_id = ? ORDER BY seq', [id]);
+  if (parts.length !== row.chunks) throw new Error(`${filename} is incomplete; upload it again`);
+  return Buffer.concat(parts.map((p) => p.data));
+}
+
+/** Detects MP4, MOV and WebM video from the first bytes. */
+export function sniffVideo(buf: Buffer): string | null {
+  if (buf.subarray(4, 8).toString('ascii') === 'ftyp') return buf.subarray(8, 12).toString('ascii') === 'qt  ' ? 'video/quicktime' : 'video/mp4';
+  if (buf.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'video/webm';
+  return null;
 }
 
 /** Detects the real image type from its first bytes rather than trusting the upload. */
@@ -57,15 +87,32 @@ export function sniffImage(buf: Buffer): string | null {
 }
 
 export const MAX_UPLOAD = 10_000_000;
+export const MAX_VIDEO = 100_000_000;
+const CHUNK = 4_000_000;
 
-/** Saves an image to the media library. Images live in the database so they survive redeploys. */
+/** Saves an image or video to the media library. Media lives in the database so it survives redeploys. */
 export async function storeMedia(workspaceId: string, buf: Buffer, name: string, alt = '') {
-  if (buf.length > MAX_UPLOAD) throw new HttpError(413, 'Images can be up to 10 MB.');
-  const mime = sniffImage(buf);
-  if (!mime) throw new HttpError(422, 'Use a JPEG, PNG, GIF or WebP image.');
+  const video = sniffVideo(buf);
+  const mime = video ?? sniffImage(buf);
+  if (!mime) throw new HttpError(422, 'Use a JPEG, PNG, GIF or WebP image, or an MP4, MOV or WebM video.');
+  if (!video && buf.length > MAX_UPLOAD) throw new HttpError(413, 'Images can be up to 10 MB.');
+  if (video && buf.length > MAX_VIDEO) throw new HttpError(413, 'Videos can be up to 100 MB.');
   const id = newId('med');
   const key = token(18);
-  const filename = (name || 'image').replace(/[^\w.\- ]+/g, '').slice(0, 190) || 'image';
-  await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, workspaceId, key, filename, mime, buf.length, alt || null, buf, new Date()]);
+  const filename = (name || (video ? 'video' : 'image')).replace(/[^\w.\- ]+/g, '').slice(0, 190) || 'file';
+  const chunks = video ? Math.ceil(buf.length / CHUNK) : 0;
+  for (let i = 0; i < chunks; i++) await run('INSERT INTO media_chunks (media_id, seq, data) VALUES (?, ?, ?)', [id, i, buf.subarray(i * CHUNK, (i + 1) * CHUNK)]);
+  await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, chunks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+    id,
+    workspaceId,
+    key,
+    filename,
+    mime,
+    buf.length,
+    alt || null,
+    video ? Buffer.alloc(0) : buf,
+    chunks,
+    new Date(),
+  ]);
   return { id, filename, mime, key };
 }
