@@ -17,3 +17,7 @@ Razorpay checks for these before activating a website: Contact (`/contact/`), Te
 ## Deploy (Hostinger)
 
 Upload the contents of `public/` (including `.htaccess`) to `public_html` of the surecast.live website in hPanel. The `.htaccess` forces HTTPS, drops `www`, and redirects `/login` and `/signup` to the app.
+
+## Deploy (Hostinger)
+
+Live at https://surecast.live since 2026-10-22. To redeploy: rebuild, zip the contents of `public/`, put the zip in public_html and run "Deploy static site archive" on it (it replaces public_html).
