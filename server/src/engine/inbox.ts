@@ -3,7 +3,7 @@
 // so the team can see what was answered, when, and by whom.
 import { HttpError, type AuthUser } from '../auth.js';
 import { all, one, run } from '../db.js';
-import { adapter, PublishError } from '../platforms/index.js';
+import { adapter, adapters, PublishError } from '../platforms/index.js';
 import { addMs, clip, minutes, newId } from '../util.js';
 import { channelCtx, channelFailed, getChannel, type ChannelRow } from './channels.js';
 import { replyOnWhatsApp } from './chitthi.js';
@@ -70,11 +70,74 @@ export async function collectInbox(now = new Date()) {
   return found;
 }
 
+/**
+ * Reviews of each channel that has them (Google Business locations), every 30 minutes. Reviews
+ * that the business already answered come in as done, so the inbox only asks about new ones.
+ */
+export async function collectReviews(now = new Date()) {
+  const platforms = adapters()
+    .filter((a) => a.reviews)
+    .map((a) => a.platform);
+  if (!platforms.length) return 0;
+  const due = await all<{ id: string }>(
+    `SELECT id FROM channels WHERE platform IN (?) AND status <> 'disconnected' AND (reviews_checked_at IS NULL OR reviews_checked_at < ?) ORDER BY reviews_checked_at IS NULL DESC, reviews_checked_at LIMIT 50`,
+    [platforms, addMs(now, -minutes(30))],
+  );
+  let found = 0;
+  for (const { id } of due) {
+    const ch = await getChannel(id);
+    if (!ch) continue;
+    await run('UPDATE channels SET reviews_checked_at = ? WHERE id = ?', [now, id]);
+    let reviews;
+    try {
+      reviews = await adapter(ch.platform).reviews!(channelCtx(ch));
+    } catch (e) {
+      if (!(e instanceof PublishError)) console.error(`Reading reviews for channel ${id} failed`, e);
+      continue;
+    }
+    const known = new Set(
+      reviews.length ? (await all<{ remote_id: string }>('SELECT remote_id FROM inbox_items WHERE channel_id = ? AND remote_id IN (?)', [id, reviews.map((r) => clip(r.id, 190))])).map((r) => r.remote_id) : [],
+    );
+    for (const rv of reviews) {
+      if (!known.has(clip(rv.id, 190)!)) found++;
+      await run(
+        `INSERT INTO inbox_items (id, workspace_id, client_id, channel_id, target_id, post_id, platform, remote_id, parent_remote_id, root_remote_id, author_name, author_handle, author_avatar, body, url, rating, received_at, status, reply_text, replied_at, created_at)
+         VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE body = VALUES(body), rating = VALUES(rating),
+           status = IF(reply_text IS NULL AND VALUES(reply_text) IS NOT NULL, 'done', status),
+           replied_at = COALESCE(replied_at, VALUES(replied_at)), reply_text = COALESCE(reply_text, VALUES(reply_text))`,
+        [
+          newId('inb'),
+          ch.workspace_id,
+          ch.client_id,
+          id,
+          ch.platform,
+          clip(rv.id, 190),
+          clip(rv.id, 190),
+          clip(rv.id, 190),
+          clip(rv.authorName, 190) ?? '',
+          clip(rv.authorAvatar, 500),
+          rv.text.slice(0, 10_000),
+          clip(rv.url, 500),
+          rv.rating,
+          rv.createdAt,
+          rv.reply ? 'done' : 'open',
+          rv.reply?.text ?? null,
+          rv.reply?.at ?? null,
+          now,
+        ],
+      );
+    }
+  }
+  return found;
+}
+
 let lastRun = 0;
 export async function inboxTick(now = new Date()) {
   if (Date.now() - lastRun < minutes(2)) return;
   lastRun = Date.now();
   await collectInbox(now);
+  await collectReviews(now);
 }
 
 export type InboxFilter = { id?: string; clientId?: string; status?: string; platform?: string; limit?: number; before?: string };
@@ -120,6 +183,9 @@ function itemJson(r: Record<string, any>) {
     isReplyToComment: r.platform !== 'whatsapp' && r.parent_remote_id !== r.root_remote_id,
     /** WhatsApp chats are direct messages, not comments under a post. */
     isDirect: r.platform === 'whatsapp',
+    /** A review of the business (1 to 5 stars), not a comment under a post. */
+    isReview: r.platform !== 'whatsapp' && !r.post_id,
+    rating: r.rating ?? null,
     reply: r.replied_at ? { text: r.reply_text, at: r.replied_at, by: r.replied_by_name } : null,
     replyError: r.reply_error,
   };

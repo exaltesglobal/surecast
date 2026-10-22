@@ -440,8 +440,8 @@ export async function explainResults(workspaceId: string, b: Record<string, any>
 
 /** Three short reply options to a comment or WhatsApp message, in the client's voice. */
 export async function suggestReplies(workspaceId: string, itemId: string) {
-  const item = await one<{ client_id: string; platform: string; body: string; author_name: string; target_id: string | null; root_remote_id: string; received_at: Date }>(
-    'SELECT client_id, platform, body, author_name, target_id, root_remote_id, received_at FROM inbox_items WHERE id = ? AND workspace_id = ?',
+  const item = await one<{ client_id: string; platform: string; body: string; author_name: string; target_id: string | null; post_id: string | null; rating: number | null; root_remote_id: string; received_at: Date }>(
+    'SELECT client_id, platform, body, author_name, target_id, post_id, rating, root_remote_id, received_at FROM inbox_items WHERE id = ? AND workspace_id = ?',
     [itemId, workspaceId],
   );
   if (!item) throw new HttpError(404, 'That message is no longer in the inbox.');
@@ -463,6 +463,22 @@ export async function suggestReplies(workspaceId: string, itemId: string) {
         `${item.author_name} sent ${ctx.name} a WhatsApp message. Suggest 3 different short replies from ${ctx.name}, each under 500 characters. ` +
           'Answer only with facts you can see here; if you do not know (prices, stock, opening hours), say someone will confirm shortly instead of guessing. No hashtags.\n\n' +
           `<source>\n${history ? `Earlier in the chat:\n${history}\n\n` : ''}New message from ${item.author_name}: ${item.body}\n</source>`,
+      ),
+      schema: obj({ replies: STRS }),
+      effort: 'low',
+    });
+    return { replies: (data.replies as string[]).slice(0, 3) };
+  }
+  if (!item.post_id) {
+    // A review of the business on Google. Public, so prospective customers read the answer too.
+    const data = await call(workspaceId, {
+      task: 'reply',
+      system: system(ctx, 'This is a public reply to a customer review, read by future customers as much as by the reviewer.'),
+      content: text(
+        `${item.author_name} left ${ctx.name} a ${item.rating ? `${item.rating}-star ` : ''}review on Google. Suggest 3 different replies from ${ctx.name}, each under 600 characters. ` +
+          'Thank them by name and mention something specific they said. For a low rating, apologise without arguing or admitting fault, and invite them to get in touch directly to put it right. ' +
+          'Never promise refunds or compensation, never invent facts, and no hashtags or emojis.\n\n' +
+          `<source>\nReview: ${item.body || '(a rating with no text)'}\n</source>`,
       ),
       schema: obj({ replies: STRS }),
       effort: 'low',

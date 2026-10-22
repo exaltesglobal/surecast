@@ -111,9 +111,14 @@ export interface Adapter {
    * comment as the parent.
    */
   answer?(ch: ChannelCtx, comment: { id: string; rootId: string }, text: string, idempotencyKey: string): Promise<PublishResult>;
+  /** Reviews of the account itself (not of a post), newest first. Answered with answer(). */
+  reviews?(ch: ChannelCtx): Promise<RemoteReview[]>;
 }
 
 export type RemoteComment = { id: string; parentId: string; authorName: string; authorHandle: string; authorAvatar: string | null; text: string; createdAt: Date; url: string | null };
+
+/** A customer review, with the business's existing reply if it already has one. */
+export type RemoteReview = RemoteComment & { rating: number | null; reply: { text: string; at: Date } | null };
 
 export type PostMetrics = { likes: number; comments: number; shares: number; views: number | null };
 

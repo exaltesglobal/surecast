@@ -451,4 +451,9 @@ export const MIGRATIONS: string[][] = [
     // Workspaces can keep their media in their own Google Drive (an integration of kind 'gdrive').
     `ALTER TABLE media ADD COLUMN drive_file_id VARCHAR(128) NULL`,
   ],
+  [
+    // Google reviews in the inbox: checked per channel, and they have a star rating.
+    `ALTER TABLE channels ADD COLUMN reviews_checked_at DATETIME(3) NULL`,
+    `ALTER TABLE inbox_items ADD COLUMN rating TINYINT NULL`,
+  ],
 ];
