@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useApp } from '../components/Layout';
-import { Empty, ErrorBanner, Loading, Pill, PlatformBadge, useLoad } from '../components/ui';
+import { Empty, ErrorBanner, Loading, MediaThumb, Pill, PlatformBadge, useLoad } from '../components/ui';
 import { api } from '../lib/api';
 import { fmt } from '../lib/time';
 import type { Post } from '../lib/types';
@@ -65,7 +65,7 @@ export function PostsPage() {
             return (
               <Link key={p.id} to={`/posts/${p.id}`} className="list-item" style={{ color: 'inherit', textDecoration: 'none' }}>
                 {p.media[0] ? (
-                  <img src={p.media[0].url} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
+                  <MediaThumb m={p.media[0]} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
                 ) : (
                   <span style={{ width: 52, height: 52, borderRadius: 8, background: 'var(--surface-2)', flex: 'none' }} />
                 )}

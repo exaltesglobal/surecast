@@ -95,7 +95,7 @@ const OPS: Op[] = [
   { method: 'post', path: '/posts/{id}/cancel', tag: 'Posts', summary: 'Cancels whatever has not gone out yet.' },
   { method: 'post', path: '/posts/{id}/duplicate', tag: 'Posts', summary: 'Copies a post as a draft.' },
   { method: 'post', path: '/guard/check', tag: 'Posts', summary: 'Checks text against a client’s brand guard.', body: [['clientId', 'string', '', true], ['text', 'string', '', true]] },
-  { method: 'post', path: '/media', tag: 'Media', summary: 'Uploads an image (multipart/form-data, field "file").' },
+  { method: 'post', path: '/media', tag: 'Media', summary: 'Uploads an image (up to 10 MB) or an MP4, MOV or WebM video (up to 100 MB) as multipart/form-data, field "file".' },
   { method: 'get', path: '/media', tag: 'Media', summary: 'The media library.' },
 
   { method: 'get', path: '/alerts', tag: 'Alerts', summary: 'Open alerts: failures, disconnected channels, approvals and paused clients.' },

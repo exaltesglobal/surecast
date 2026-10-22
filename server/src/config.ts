@@ -35,6 +35,7 @@ export const config = {
   threads: app(env.THREADS_APP_ID, env.THREADS_APP_SECRET),
   pinterest: app(env.PINTEREST_APP_ID, env.PINTEREST_APP_SECRET),
   google: app(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
+  tiktok: app(env.TIKTOK_CLIENT_KEY, env.TIKTOK_CLIENT_SECRET),
   /** The AI writing assistant. Switched off when no key is set. */
   ai: {
     apiKey: env.ANTHROPIC_API_KEY ?? '',

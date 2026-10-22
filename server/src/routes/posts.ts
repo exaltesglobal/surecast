@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 
 import { HttpError, requireUser, type Env } from '../auth.js';
 import { all, json, one, run } from '../db.js';
-import { MAX_UPLOAD, mediaUrl, storeMedia } from '../engine/content.js';
+import { MAX_VIDEO, mediaUrl, storeMedia } from '../engine/content.js';
 import { retryFollowUps } from '../engine/followups.js';
 import { cancelPost, postsJson, retryPost, savePost, validateDraft } from '../engine/posts.js';
 import { newId } from '../util.js';
@@ -109,8 +109,8 @@ export const postRoutes = new Hono<Env>()
   .post('/media', async (c) => {
     const form = await c.req.parseBody();
     const file = form.file;
-    if (!(file instanceof File)) throw new HttpError(422, 'Choose an image to upload.');
-    if (file.size > MAX_UPLOAD) throw new HttpError(413, 'Images can be up to 10 MB.');
+    if (!(file instanceof File)) throw new HttpError(422, 'Choose an image or video to upload.');
+    if (file.size > MAX_VIDEO) throw new HttpError(413, 'Videos can be up to 100 MB.');
     const buf = Buffer.from(await file.arrayBuffer());
     const alt = typeof form.alt === 'string' ? form.alt.slice(0, 2000) : '';
     const { id, filename, mime, key } = await storeMedia(c.get('workspaceId'), buf, file.name, alt);
@@ -127,6 +127,7 @@ export const postRoutes = new Hono<Env>()
       [c.get('workspaceId'), `%"${c.req.param('id')}"%`],
     );
     if (used) throw new HttpError(409, 'This image is used by a post that has not gone out yet.');
-    await run('DELETE FROM media WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
+    const gone = await run('DELETE FROM media WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
+    if (gone) await run('DELETE FROM media_chunks WHERE media_id = ?', [c.req.param('id')]);
     return c.json({ ok: true });
   });

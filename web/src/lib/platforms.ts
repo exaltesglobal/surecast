@@ -9,6 +9,8 @@ export const PLATFORM: Record<string, { label: string; color: string; short: str
   threads: { label: 'Threads', color: '#000000', short: '@' },
   pinterest: { label: 'Pinterest', color: '#e60023', short: 'P' },
   google: { label: 'Google Business', color: '#1a73e8', short: 'G' },
+  youtube: { label: 'YouTube', color: '#ff0000', short: 'YT' },
+  tiktok: { label: 'TikTok', color: '#010101', short: 'TT' },
   whatsapp: { label: 'WhatsApp', color: '#25d366', short: 'W' },
 };
 
