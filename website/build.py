@@ -17,20 +17,21 @@ ICONS = ROOT / "icons"  # Mono set from the brand kit (08 Iconography/SVG Mono)
 
 # ---------------------------------------------------------------------------
 # Business details. Razorpay checks these against the merchant KYC, so they
-# must match the registered company exactly. Items in [brackets] need filling.
+# must match the registered company exactly. Taken from the GST registration certificate.
 # ---------------------------------------------------------------------------
 SITE = {
     "url": "https://surecast.live",
     "app": "https://app.surecast.live",
     "brand": "Surecast",
     "company": "Exaltes Global Private Limited",
-    "address": "[Registered office address, City, State, PIN], India",
-    "city": "[City]",
-    "email": "support@surecast.live",
-    "legal_email": "legal@surecast.live",
-    "phone": "[+91 phone number]",
+    "address": "Plot 586, Tilak Marg, Pandit Dindayal Upadhyay Marg, Sector 25, Nigdi Pradhikaran, Pimpri Chinchwad, Pune, Maharashtra 411044, India",
+    "city": "Pune",
+    "gstin": "27AAJCE3276G1ZH",
+    "maker": "Agape Labs",
+    "email": "hello@surecast.live",
+    "legal_email": "hello@surecast.live",
     "hours": "Monday to Friday, 10:00 to 18:00 IST",
-    "grievance_officer": "[Grievance Officer name]",
+    "grievance_officer": "Joanna Paul",
     "updated": "22 October 2026",
 }
 
@@ -140,7 +141,7 @@ def footer():
       <div>
         <img src="/brand/Surecast-Logo-Horizontal-Reverse.svg" alt="Surecast" width="135" height="28">
         <p>Every post goes out. Or you know why.</p>
-        <p>Surecast is a product of {SITE['company']}.</p>
+        <p>Surecast is a product of {SITE['maker']}, a unit of {SITE['company']}.</p>
       </div>
       <div>
         <h4>Product</h4>
@@ -169,7 +170,7 @@ def footer():
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; {year} {SITE['company']}. All rights reserved.</span>
+      <span>&copy; {year} {SITE['company']}. GSTIN {SITE['gstin']}. All rights reserved.</span>
       <span>Prices in Indian Rupees. Payments processed securely by Razorpay.</span>
     </div>
   </div>
@@ -410,22 +411,22 @@ def contact():
 <p>We are happy to help with questions about Surecast, your account, billing or a payment.</p>
 <div class="contact-cards">
   <div class="contact-card"><h3>Email support</h3><p><a href="mailto:{S['email']}">{S['email']}</a><br>We reply within one business day.</p></div>
-  <div class="contact-card"><h3>Phone</h3><p>{S['phone']}<br>{S['hours']}</p></div>
+  <div class="contact-card"><h3>Support hours</h3><p>{S['hours']}<br>Excluding public holidays in India.</p></div>
   <div class="contact-card"><h3>Billing and payments</h3><p><a href="mailto:{S['email']}?subject=Billing">{S['email']}</a><br>Include your account email and the Razorpay payment ID.</p></div>
   <div class="contact-card"><h3>Legal and privacy</h3><p><a href="mailto:{S['legal_email']}">{S['legal_email']}</a><br>Grievance Officer: {S['grievance_officer']}</p></div>
 </div>
 <h2>Registered office</h2>
-<p><strong>{CO}</strong><br>{S['address']}</p>
+<p><strong>{CO}</strong> (Surecast is a product of {S['maker']})<br>{S['address']}<br>GSTIN: {S['gstin']}</p>
 <h2>Operating hours</h2>
 <p>{S['hours']}, excluding public holidays in India. The Surecast service itself runs 24 hours a day.</p>
 """
-    return legal("/contact/", "Contact us", "Contact Surecast support, billing and legal teams.", "Reach the Surecast team by email or phone.", content)
+    return legal("/contact/", "Contact us", "Contact Surecast support, billing and legal teams.", "Reach the Surecast team by email.", content)
 
 
 def terms():
     content = f"""
 <p class="callout">Last updated: {S['updated']}</p>
-<p>These Terms and Conditions ("Terms") govern your use of the Surecast website at surecast.live and the Surecast application at app.surecast.live (together, the "Service"). The Service is operated by <strong>{CO}</strong>, a company incorporated in India with its registered office at {S['address']} ("Surecast", "we", "us"). By creating an account or using the Service you agree to these Terms. If you use the Service for a business, you confirm you are authorised to accept these Terms on its behalf.</p>
+<p>These Terms and Conditions ("Terms") govern your use of the Surecast website at surecast.live and the Surecast application at app.surecast.live (together, the "Service"). The Service is operated by <strong>{CO}</strong> through its {S['maker']} unit, a company incorporated in India with its registered office at {S['address']} ("Surecast", "we", "us"). By creating an account or using the Service you agree to these Terms. If you use the Service for a business, you confirm you are authorised to accept these Terms on its behalf.</p>
 
 <h2>1. The Service</h2>
 <p>Surecast is a software-as-a-service tool for planning, approving, scheduling and publishing content to third-party social media platforms, and for monitoring whether that content was published. The Service is delivered online. No physical goods are sold or shipped.</p>
@@ -490,7 +491,7 @@ def terms():
 <p>These Terms are governed by the laws of India. The courts at {S['city']}, India have exclusive jurisdiction over any dispute arising from them. Before going to court, please contact us at {S['legal_email']} so we can try to resolve the issue.</p>
 
 <h2>16. Contact</h2>
-<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['legal_email']}">{S['legal_email']}</a> · Phone: {S['phone']}</p>
+<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['legal_email']}">{S['legal_email']}</a></p>
 """
     return legal("/terms/", "Terms and conditions", "The terms that govern use of Surecast.", "The agreement between you and " + CO + " for using Surecast.", content)
 
@@ -588,7 +589,7 @@ def refund():
 <p>Approved refunds are processed within 5 to 7 business days and returned to the original payment method through Razorpay. Your bank or card issuer may take a few more days to show the credit.</p>
 
 <h2>Contact</h2>
-<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['email']}">{S['email']}</a> · Phone: {S['phone']}</p>
+<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['email']}">{S['email']}</a></p>
 """
     return legal("/refund-policy/", "Cancellation and refund policy", "How to cancel a Surecast subscription and how refunds work.", "How to cancel and how refunds work.", content)
 
@@ -615,7 +616,7 @@ def shipping():
 <p>The Service can be used from anywhere with an internet connection, subject to applicable law and the availability of the connected social platforms.</p>
 
 <h2>Contact</h2>
-<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['email']}">{S['email']}</a> · Phone: {S['phone']}</p>
+<p>{CO}<br>{S['address']}<br>Email: <a href="mailto:{S['email']}">{S['email']}</a></p>
 """
     return legal("/shipping-policy/", "Shipping and delivery policy", "Surecast is an online service with instant digital delivery and no physical shipping.", "Surecast is delivered online. Nothing is shipped.", content)
 
