@@ -1,0 +1,42 @@
+{
+  "name": "surecast",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Surecast: a social media scheduler for agencies. Every post goes out, or you know why.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch server/src/index.ts",
+    "dev:web": "vite",
+    "build": "npm run build:web && npm run build:api",
+    "build:web": "tsc --noEmit -p web && vite build",
+    "build:api": "tsc -p server",
+    "start": "node server/dist/index.js",
+    "test": "tsx --test --test-concurrency=1 server/test/*.test.ts",
+    "typecheck": "tsc --noEmit -p server && tsc --noEmit -p web"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "mysql2": "^3.11.5",
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.1.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
