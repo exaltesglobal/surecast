@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { generateApiKey, HttpError, logout, requestCode, requireAdmin, requireUser, verifyCode, type Env } from '../auth.js';
 import { config } from '../config.js';
 import { all, one, run } from '../db.js';
+import { cleanVoice, parseVoice } from '../engine/ai.js';
 import { emitEvent } from '../engine/webhooks.js';
 import { emailHtml, sendEmail } from '../mail.js';
 import { hashSecret, isEmail, isTimeZone, newId, token } from '../util.js';
@@ -105,13 +106,13 @@ export const workspaceRoutes = new Hono<Env>()
   // Clients
   .get('/clients', async (c) => {
     const clients = await all(
-      `SELECT cl.id, cl.name, cl.timezone, cl.color, cl.approval_required AS approvalRequired, cl.contact_email AS contactEmail, cl.share_token AS shareToken, cl.archived_at AS archivedAt,
+      `SELECT cl.id, cl.name, cl.timezone, cl.color, cl.approval_required AS approvalRequired, cl.contact_email AS contactEmail, cl.share_token AS shareToken, cl.archived_at AS archivedAt, cl.voice,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id) AS channelCount,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id AND ch.status <> 'ok') AS channelsAtRisk
        FROM clients cl WHERE cl.workspace_id = ? ORDER BY cl.archived_at IS NOT NULL, cl.name`,
       [c.get('workspaceId')],
     );
-    return c.json({ clients: clients.map((x) => ({ ...x, approvalRequired: !!x.approvalRequired, channelCount: Number(x.channelCount), channelsAtRisk: Number(x.channelsAtRisk) })) });
+    return c.json({ clients: clients.map((x) => ({ ...x, voice: parseVoice(x.voice), approvalRequired: !!x.approvalRequired, channelCount: Number(x.channelCount), channelsAtRisk: Number(x.channelsAtRisk) })) });
   })
   .post('/clients', async (c) => {
     const b = await body(c);
@@ -140,7 +141,8 @@ export const workspaceRoutes = new Hono<Env>()
     if (b.contactEmail && !isEmail(b.contactEmail)) throw new HttpError(422, 'The contact email is not valid.');
     const n = await run(
       `UPDATE clients SET name = COALESCE(NULLIF(?, ''), name), timezone = COALESCE(?, timezone), color = COALESCE(?, color),
-        approval_required = COALESCE(?, approval_required), contact_email = IF(?, ?, contact_email), archived_at = IF(?, ?, archived_at)
+        approval_required = COALESCE(?, approval_required), contact_email = IF(?, ?, contact_email), archived_at = IF(?, ?, archived_at),
+        voice = IF(?, ?, voice)
        WHERE id = ? AND workspace_id = ?`,
       [
         str(b.name, 120),
@@ -151,6 +153,8 @@ export const workspaceRoutes = new Hono<Env>()
         b.contactEmail ? String(b.contactEmail).trim().toLowerCase() : null,
         typeof b.archived === 'boolean',
         b.archived ? new Date() : null,
+        b.voice !== undefined,
+        b.voice ? JSON.stringify(cleanVoice(b.voice)) : null,
         c.req.param('id'),
         c.get('workspaceId'),
       ],

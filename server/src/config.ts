@@ -32,6 +32,13 @@ export const config = {
   linkedin: app(env.LINKEDIN_CLIENT_ID, env.LINKEDIN_CLIENT_SECRET),
   meta: app(env.META_APP_ID, env.META_APP_SECRET),
   x: app(env.X_CLIENT_ID, env.X_CLIENT_SECRET),
+  /** The AI writing assistant. Switched off when no key is set. */
+  ai: {
+    apiKey: env.ANTHROPIC_API_KEY ?? '',
+    model: env.AI_MODEL || 'claude-opus-5-5',
+    /** Requests per workspace per day, so one runaway script can't run up the bill. */
+    dailyLimit: Number(env.AI_DAILY_LIMIT) || 300,
+  },
   /** Posts more than this many minutes late are held for review instead of going out. */
   lateLimitMinutes: Number(env.LATE_LIMIT_MINUTES) || 120,
   /** Run the scheduler inside the web process. Tests turn this off and call tick() directly. */
