@@ -2,8 +2,9 @@ import { AlertCircle, ImagePlus, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 
+import { AltTextButton, Assistant, type AiStatus } from '../components/Assistant';
 import { useApp } from '../components/Layout';
-import { Avatar, Empty, ErrorBanner, Loading, PlatformBadge, Spinner, useToast } from '../components/ui';
+import { Avatar, Empty, ErrorBanner, Loading, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { utcToZoned, zonedToUtc } from '../lib/time';
@@ -36,6 +37,7 @@ export function Composer() {
   const [drag, setDrag] = useState(false);
   const [post, setPost] = useState<Post | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const ai = useLoad(() => api<AiStatus>('/ai/status'));
 
   const client = clients.find((c) => c.id === clientId);
   const tz = client?.timezone ?? 'UTC';
@@ -247,7 +249,19 @@ export function Composer() {
                       <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove image">
                         <X size={13} />
                       </button>
+                      {ai.data?.enabled && (
+                        <AltTextButton
+                          mediaId={m.id}
+                          clientId={clientId}
+                          text={body}
+                          onAlt={(alt) => {
+                            api(`/media/${m.id}`, { method: 'PATCH', body: { alt } });
+                            setMedia(media.map((x) => (x.id === m.id ? { ...x, alt } : x)));
+                          }}
+                        />
+                      )}
                       <input
+                        key={m.alt}
                         placeholder="Alt text"
                         defaultValue={m.alt}
                         onBlur={(e) => {
@@ -280,6 +294,30 @@ export function Composer() {
               </div>
             </div>
           </div>
+
+          {ai.data && clientId && (
+            <Assistant
+              status={ai.data}
+              clientId={clientId}
+              platforms={[...new Set(selectedChannels.map((c) => c.platform))]}
+              text={editingText}
+              onUse={(t) => (tab === 'all' ? setBody(t) : setOverrides({ ...overrides, [tab]: t }))}
+              onAppend={(t) => {
+                const add = (s: string) => `${s.trimEnd()}${s.trim() ? '\n\n' : ''}${t}`;
+                if (tab === 'all') setBody(add(body));
+                else setOverrides({ ...overrides, [tab]: add(textFor(tab)) });
+              }}
+              onAdapt={(versions) => {
+                const next = { ...overrides };
+                for (const c of selectedChannels) {
+                  const v = versions.find((x) => x.platform === c.platform);
+                  if (v?.text) next[c.id] = v.text;
+                }
+                setOverrides(next);
+                toast('Each channel now has its own version. Check them in the tabs above.');
+              }}
+            />
+          )}
 
           <div className="card pad stack">
             <div className="row between">

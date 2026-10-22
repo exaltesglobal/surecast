@@ -4,7 +4,7 @@ import { all, db, migrate, run } from '../src/db.js';
 import { overrideAdapter, PublishError, type Adapter, type PublishInput } from '../src/platforms/index.js';
 import { encrypt, newId, token } from '../src/util.js';
 
-const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs'];
+const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage'];
 
 export async function resetDb() {
   await migrate();

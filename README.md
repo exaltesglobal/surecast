@@ -16,6 +16,7 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 - **Proof-of-publish reports.** A monthly report for each client that lists every post, when it went out and its live link. It's printable and can be shared as a link.
 - **Calendar, composer and queue.** The composer lets you change the text for each network, shows live character counts against each platform's rules, previews the post, and takes images with alt text. Editing a post keeps its scheduled time.
 - **Team** with unlimited seats and owner, admin and editor roles.
+- **Writing assistant** (AI). Drafts three post options from a short brief, rewrites a post (shorter, punchier, better hook, call to action, translate, or any instruction), adapts one post into a version for each network within its limits, suggests hashtags, writes image alt text, reviews a post for typos, risky claims and leftover placeholders before it goes out, and suggests post ideas. It writes in each client's **brand voice**, which you can describe by hand or have it learn from the client's past posts. It never changes a post on its own: every suggestion has a "Use this" button. Each workspace gets a daily request limit (`AI_DAILY_LIMIT`, default 300).
 - **API keys and signed webhooks**, so scripts, Zapier and AI agents can schedule posts.
 - **Dark mode**, and a layout that works on mobile.
 
@@ -79,6 +80,7 @@ Without SMTP settings, emails (including sign-in codes) are printed to the conso
    - `APP_SECRET`: 64 or more random characters. Keep it safe, because changing it disconnects every channel.
    - `CRON_SECRET`: another random string.
    - `EMAIL_FROM` and the `SMTP_*` variables (`smtp.hostinger.com`, port 465). In production, the app won't start if any of these are missing.
+   - `ANTHROPIC_API_KEY` (optional) switches on the writing assistant. Create a key at console.anthropic.com. The assistant uses Claude Opus 5.5; set `AI_MODEL` to use a different model.
 5. **Cron job:** in hPanel > Advanced > Cron Jobs, add a job that runs every minute:
    ```
    curl -fsS "https://surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null

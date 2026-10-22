@@ -9,7 +9,10 @@ export type Client = {
   archivedAt: string | null;
   channelCount: number;
   channelsAtRisk: number;
+  voice: Voice | null;
 };
+
+export type Voice = { description: string; audience: string; dos: string; donts: string; examples: string; language: string };
 
 export type Channel = {
   id: string;

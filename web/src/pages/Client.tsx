@@ -1,4 +1,4 @@
-import { FileBarChart, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { FileBarChart, Lock, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
@@ -7,7 +7,7 @@ import { Avatar, CopyField, Empty, ErrorBanner, Loading, Modal, Pill, PlatformBa
 import { api } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { ago, fmt, TIMEZONES } from '../lib/time';
-import type { Channel, PlatformDef } from '../lib/types';
+import type { Channel, PlatformDef, Voice } from '../lib/types';
 
 export function ClientPage() {
   const { id } = useParams();
@@ -155,6 +155,7 @@ export function ClientPage() {
             </button>
           </section>
           <ClientSettings />
+          <BrandVoice />
         </div>
       </div>
       {connecting && <ConnectModal platform={connecting} clientId={client.id} onClose={() => setConnecting(null)} onDone={() => (reload(), reloadClients())} />}
@@ -216,6 +217,93 @@ function ClientSettings() {
           {c.archivedAt ? 'Restore client' : 'Archive client'}
         </button>
       </div>
+    </form>
+  );
+}
+
+const NO_VOICE: Voice = { description: '', audience: '', dos: '', donts: '', examples: '', language: '' };
+
+/** How this client sounds. The writing assistant follows it for every post. */
+function BrandVoice() {
+  const { id } = useParams();
+  const toast = useToast();
+  const { clients, reloadClients } = useApp();
+  const c = clients.find((x) => x.id === id)!;
+  const [voice, setVoice] = useState<Voice>(c.voice ?? NO_VOICE);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof Voice) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setVoice({ ...voice, [k]: e.target.value });
+  const act = async (name: string, fn: () => Promise<void>) => {
+    setBusy(name);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <form
+      className="card pad stack"
+      onSubmit={(e) => {
+        e.preventDefault();
+        act('save', async () => {
+          await api(`/clients/${c.id}`, { method: 'PATCH', body: { voice } });
+          await reloadClients();
+          toast('Brand voice saved');
+        });
+      }}
+    >
+      <div className="row between">
+        <h3>Brand voice</h3>
+        <button
+          type="button"
+          className="btn sm"
+          disabled={!!busy}
+          onClick={() =>
+            act('learn', async () => {
+              const r = await api<{ voice: Voice }>('/ai/learn-voice', { body: { clientId: c.id } });
+              setVoice(r.voice);
+              toast('Drafted from past posts. Check it, then save.');
+            })
+          }
+        >
+          {busy === 'learn' ? <Spinner size={13} /> : <Sparkles size={14} />} Learn from past posts
+        </button>
+      </div>
+      <p className="small muted">The writing assistant follows this for every post it writes for {c.name}.</p>
+      <label className="field">
+        How they sound
+        <textarea className="input" rows={2} value={voice.description} onChange={set('description')} placeholder="Warm, neighbourly and a little playful. Short sentences." />
+      </label>
+      <label className="field">
+        Who they talk to
+        <input className="input" value={voice.audience} onChange={set('audience')} placeholder="Families and office workers in Koregaon Park" />
+      </label>
+      <div className="voice-grid">
+        <label className="field">
+          Always
+          <textarea className="input" rows={2} value={voice.dos} onChange={set('dos')} placeholder="Mention the neighbourhood. Sign off with 🥐" />
+        </label>
+        <label className="field">
+          Never
+          <textarea className="input" rows={2} value={voice.donts} onChange={set('donts')} placeholder="No discounts unless we say so. Don't say 'artisanal'." />
+        </label>
+      </div>
+      <label className="field">
+        Example posts <span className="hint">A few posts that sound just right, separated by ---</span>
+        <textarea className="input" rows={4} value={voice.examples} onChange={set('examples')} />
+      </label>
+      <label className="field">
+        Language
+        <input className="input" value={voice.language} onChange={set('language')} placeholder="English (India)" />
+      </label>
+      <ErrorBanner error={error} />
+      <button className="btn primary" style={{ alignSelf: 'flex-start' }} disabled={!!busy}>
+        {busy === 'save' && <Spinner size={13} />} Save brand voice
+      </button>
     </form>
   );
 }

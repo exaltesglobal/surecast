@@ -218,4 +218,16 @@ export const MIGRATIONS: string[][] = [
       last_source VARCHAR(16) NOT NULL
     ) ${T}`,
   ],
+  [
+    // Brand voice for each client, used by the AI assistant.
+    `ALTER TABLE clients ADD COLUMN voice TEXT NULL`,
+    `CREATE TABLE ai_usage (
+      workspace_id VARCHAR(24) NOT NULL,
+      day DATE NOT NULL,
+      requests INT NOT NULL DEFAULT 0,
+      input_tokens BIGINT NOT NULL DEFAULT 0,
+      output_tokens BIGINT NOT NULL DEFAULT 0,
+      PRIMARY KEY (workspace_id, day)
+    ) ${T}`,
+  ],
 ];

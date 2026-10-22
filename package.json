@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit -p server && tsc --noEmit -p web"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "@hono/node-server": "^1.13.7",
     "hono": "^4.6.14",
     "mysql2": "^3.11.5",

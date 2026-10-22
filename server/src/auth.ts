@@ -18,7 +18,7 @@ const SESSION_DAYS = 30;
 
 export class HttpError extends Error {
   constructor(
-    public status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429,
+    public status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 502 | 503,
     message: string,
   ) {
     super(message);
