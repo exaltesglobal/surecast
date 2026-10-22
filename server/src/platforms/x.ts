@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { xLength } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type PostMetrics } from './types.js';
 
 type Creds = { accessToken: string; refreshToken: string; username: string };
 
@@ -117,5 +117,25 @@ export const x: Adapter = {
       json: { text, reply: { in_reply_to_tweet_id: target.parentId } },
     });
     return { remoteId: data.data.id, url: `https://x.com/${(ch.credentials as Creds).username}/status/${data.data.id}` };
+  },
+  async metrics(ch, ids) {
+    const t = await token(ch);
+    const out: Record<string, PostMetrics> = {};
+    for (let i = 0; i < ids.length; i += 100) {
+      type M = { like_count: number; reply_count: number; retweet_count: number; quote_count: number; impression_count?: number };
+      const { data } = await http<{ data?: { id: string; public_metrics: M }[] }>('X', `https://api.x.com/2/tweets?ids=${ids.slice(i, i + 100).join(',')}&tweet.fields=public_metrics`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      for (const p of data.data ?? []) {
+        const m = p.public_metrics;
+        out[p.id] = { likes: m.like_count, comments: m.reply_count, shares: m.retweet_count + m.quote_count, views: m.impression_count ?? null };
+      }
+    }
+    return out;
+  },
+  async followers(ch) {
+    const t = await token(ch);
+    const { data } = await http<{ data: { public_metrics?: { followers_count: number } } }>('X', 'https://api.x.com/2/users/me?user.fields=public_metrics', { headers: { Authorization: `Bearer ${t}` } });
+    return data.data.public_metrics?.followers_count ?? null;
   },
 };

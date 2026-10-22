@@ -33,10 +33,10 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 
 The OAuth redirect URLs to register with each developer app are:
 
-- `https://surecast.live/v1/oauth/linkedin/callback`
-- `https://surecast.live/v1/oauth/facebook/callback` (used by both Facebook and Instagram)
-- `https://surecast.live/v1/oauth/x/callback`
-- `https://surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
+- `https://app.surecast.live/v1/oauth/linkedin/callback`
+- `https://app.surecast.live/v1/oauth/facebook/callback` (used by both Facebook and Instagram)
+- `https://app.surecast.live/v1/oauth/x/callback`
+- `https://app.surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
 
 ## Stack
 
@@ -65,17 +65,17 @@ npx tsx scripts/seed-demo.ts you@example.com   # optional sample data, after sig
 
 Without SMTP settings, emails (including sign-in codes) are printed to the console.
 
-## Deploy on Hostinger (surecast.live)
+## Deploy on Hostinger (app.surecast.live)
 
 1. **Database:** in hPanel, go to Databases > MySQL and create a database and a user. You don't need to import anything, because the app creates its tables on first start.
 2. **Email:** create a mailbox such as `alerts@surecast.live` in hPanel > Emails.
-3. **Node.js app:** in hPanel > Websites, add surecast.live as a Node.js app connected to this GitHub repository.
+3. **Node.js app:** in hPanel > Websites, add the app.surecast.live subdomain as a Node.js app (the marketing site lives separately on surecast.live) connected to this GitHub repository.
    - Build command: `npm ci && npm run build`
    - Start command: `npm start`
    - Node version: 22
 4. **Environment variables:** set everything in `.env.example`.
    - `NODE_ENV=production`
-   - `PUBLIC_URL=https://surecast.live`
+   - `PUBLIC_URL=https://app.surecast.live`
    - `DB_HOST=127.0.0.1`
    - `APP_SECRET`: 64 or more random characters. Keep it safe, because changing it disconnects every channel.
    - `CRON_SECRET`: another random string.
@@ -83,10 +83,10 @@ Without SMTP settings, emails (including sign-in codes) are printed to the conso
    - `ANTHROPIC_API_KEY` (optional) switches on the writing assistant. Create a key at console.anthropic.com. The assistant uses Claude Opus 5.5; set `AI_MODEL` to use a different model.
 5. **Cron job:** in hPanel > Advanced > Cron Jobs, add a job that runs every minute:
    ```
-   curl -fsS "https://surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null
+   curl -fsS "https://app.surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null
    ```
    The app also runs the scheduler every 20 seconds while it is awake. The cron job wakes it if Hostinger has put it to sleep.
-6. **Check:** `https://surecast.live/v1/health` should return `"ok": true` and show a recent `lastTickAt`.
+6. **Check:** `https://app.surecast.live/v1/health` should return `"ok": true` and show a recent `lastTickAt`.
 
 Never commit `.env` or paste keys into chat. Set them only in Hostinger's environment variables.
 
@@ -95,9 +95,9 @@ Never commit `.env` or paste keys into chat. Set them only in Hostinger's enviro
 Create a key in Settings > API keys, then:
 
 ```bash
-curl https://surecast.live/v1/clients -H "Authorization: Bearer sc_live_..."
+curl https://app.surecast.live/v1/clients -H "Authorization: Bearer sc_live_..."
 
-curl https://surecast.live/v1/posts -H "Authorization: Bearer sc_live_..." -H "Content-Type: application/json" -d '{
+curl https://app.surecast.live/v1/posts -H "Authorization: Bearer sc_live_..." -H "Content-Type: application/json" -d '{
   "clientId": "cli_...", "channelIds": ["chn_..."], "body": "Hello!",
   "action": "schedule", "scheduledAt": "2026-11-01T09:00:00Z"
 }'

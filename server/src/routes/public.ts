@@ -29,7 +29,7 @@ export const publicRoutes = new Hono<Env>()
     const t = db ? await lastTick().catch(() => null) : null;
     return c.json({ ok: db, db, lastTickAt: t?.last_tick_at ?? null, version: '0.1.0' }, db ? 200 : 503);
   })
-  // hPanel cron: curl -fsS "https://surecast.live/v1/cron/tick?key=CRON_SECRET"
+  // hPanel cron: curl -fsS "https://app.surecast.live/v1/cron/tick?key=CRON_SECRET"
   .on(['GET', 'POST'], '/cron/tick', async (c) => {
     const key = c.req.query('key') ?? c.req.header('X-Cron-Key') ?? '';
     if (!config.cronSecret || key !== config.cronSecret) throw new HttpError(403, 'Bad cron key.');

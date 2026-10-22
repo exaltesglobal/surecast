@@ -6,7 +6,7 @@
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter, type Candidate, type ChannelCtx } from './types.js';
+import { PublishError, type Adapter, type Candidate, type ChannelCtx, type PostMetrics } from './types.js';
 
 type Creds = { pageToken: string; pageId: string; igUserId?: string };
 
@@ -129,6 +129,22 @@ export const facebook: Adapter = {
     const r = await graph<{ id: string }>(`${G}/${target.rootId}/comments`, { json: { message: text, access_token: c.pageToken } });
     return { remoteId: r.id, url: `https://www.facebook.com/${target.rootId}` };
   },
+  async metrics(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, PostMetrics> = {};
+    type P = { shares?: { count: number }; reactions?: { summary?: { total_count: number } }; comments?: { summary?: { total_count: number } } };
+    for (let i = 0; i < ids.length; i += 50) {
+      const fields = 'shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)';
+      const r = await graph<Record<string, P>>(`${G}/?ids=${ids.slice(i, i + 50).map(encodeURIComponent).join(',')}&fields=${encodeURIComponent(fields)}&access_token=${c.pageToken}`);
+      for (const [id, p] of Object.entries(r)) out[id] = { likes: p.reactions?.summary?.total_count ?? 0, comments: p.comments?.summary?.total_count ?? 0, shares: p.shares?.count ?? 0, views: null };
+    }
+    return out;
+  },
+  async followers(ch) {
+    const c = ch.credentials as Creds;
+    const p = await graph<{ followers_count?: number; fan_count?: number }>(`${G}/${c.pageId}?fields=followers_count,fan_count&access_token=${c.pageToken}`);
+    return p.followers_count ?? p.fan_count ?? null;
+  },
 };
 
 async function waitForContainer(id: string, token: string) {
@@ -186,5 +202,18 @@ export const instagram: Adapter = {
     const c = ch.credentials as Creds;
     const r = await graph<{ id: string }>(`${G}/${target.rootId}/comments`, { json: { message: text, access_token: c.pageToken } });
     return { remoteId: r.id, url: null };
+  },
+  async metrics(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, PostMetrics> = {};
+    for (let i = 0; i < ids.length; i += 50) {
+      const r = await graph<Record<string, { like_count?: number; comments_count?: number }>>(`${G}/?ids=${ids.slice(i, i + 50).join(',')}&fields=like_count,comments_count&access_token=${c.pageToken}`);
+      for (const [id, p] of Object.entries(r)) out[id] = { likes: p.like_count ?? 0, comments: p.comments_count ?? 0, shares: 0, views: null };
+    }
+    return out;
+  },
+  async followers(ch) {
+    const c = ch.credentials as Creds;
+    return (await graph<{ followers_count?: number }>(`${G}/${c.igUserId}?fields=followers_count&access_token=${c.pageToken}`)).followers_count ?? null;
   },
 };

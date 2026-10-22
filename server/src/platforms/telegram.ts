@@ -104,4 +104,9 @@ export const telegram: Adapter = {
     const msg = await tg<{ message_id: number }>(c.botToken, 'sendMessage', { chat_id: c.chatId, text, reply_parameters: { message_id: Number(target.parentId), allow_sending_without_reply: true } });
     return { remoteId: String(msg.message_id), url: messageUrl(ch, msg.message_id) };
   },
+  // Bots cannot read view counts, but they can count subscribers.
+  async followers(ch) {
+    const c = ch.credentials as Creds;
+    return tg<number>(c.botToken, 'getChatMemberCount', { chat_id: c.chatId });
+  },
 };

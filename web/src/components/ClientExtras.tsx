@@ -1,11 +1,11 @@
-import { Plus, RefreshCw, Rss, Trash2 } from 'lucide-react';
+import { ExternalLink, Link2, Plus, RefreshCw, Rss, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { api } from '../lib/api';
 import { fmt, ago } from '../lib/time';
 import type { Channel, Client, Feed, Slot } from '../lib/types';
 import { useApp } from './Layout';
-import { Avatar, ErrorBanner, Modal, Spinner, useLoad, useToast } from './ui';
+import { Avatar, CopyField, ErrorBanner, Modal, Spinner, useLoad, useToast } from './ui';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -25,7 +25,7 @@ export function PostingTimes({ client }: { client: Client }) {
     reload();
   };
   return (
-    <section className="card pad stack">
+    <section className="card pad stack" id="posting-times">
       <div className="row between">
         <h3>Posting times</h3>
         {data?.next && <span className="tiny muted">Next free: {fmt(data.next, client.timezone, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>}
@@ -68,7 +68,10 @@ export function PostingTimes({ client }: { client: Client }) {
           <Plus size={14} /> Add
         </button>
       </div>
-      <span className="tiny muted">Times are in {client.timezone.replace(/_/g, ' ')}. Click a time to remove it.</span>
+      <div className="row between">
+        <span className="tiny muted">Times are in {client.timezone.replace(/_/g, ' ')}. Click a time to remove it.</span>
+        <SuggestTimes client={client} slots={slots} onAdd={(add) => save([...slots, ...add]).then(() => toast('Best times added'))} />
+      </div>
     </section>
   );
 }
@@ -239,5 +242,209 @@ function AddFeed({ client, channels, onClose, onDone }: { client: Client; channe
         <ErrorBanner error={error} />
       </div>
     </Modal>
+  );
+}
+
+type Best = { basis: 'general' | 'data'; measured: number; slots: { day: number; hour: number; time: string; score: number | null; posts: number }[] };
+
+/** Fills posting times from when this client's audience responds best (or common good times, until there is data). */
+function SuggestTimes({ client, slots, onAdd }: { client: Client; slots: Slot[]; onAdd: (s: Slot[]) => Promise<void> }) {
+  const [best, setBest] = useState<Best | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fresh = best?.slots.filter((b) => !slots.some((s) => s.day === b.day && s.time === b.time)) ?? [];
+  if (!best)
+    return (
+      <button
+        type="button"
+        className="btn sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setBest(await api<Best>(`/clients/${client.id}/best-times`));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? <Spinner size={14} /> : <Sparkles size={14} />} Suggest best times
+      </button>
+    );
+  return (
+    <div className="extra small stack" style={{ gap: 6, width: '100%' }}>
+      <span>
+        {best.basis === 'data'
+          ? `From ${best.measured} of ${client.name}'s posts, these times got the strongest response:`
+          : `Not enough results yet (${best.measured} posts with numbers). These times usually work well:`}
+      </span>
+      <span className="row" style={{ gap: 4 }}>
+        {best.slots.map((b) => (
+          <span key={`${b.day}${b.time}`} className="tag on">
+            {DAYS[b.day]} {b.time}
+          </span>
+        ))}
+      </span>
+      <span className="row" style={{ gap: 6 }}>
+        <button type="button" className="btn sm primary" disabled={!fresh.length} onClick={() => onAdd(fresh.map((b) => ({ day: b.day, time: b.time }))).then(() => setBest(null))}>
+          {fresh.length ? `Add ${fresh.length} to posting times` : 'Already added'}
+        </button>
+        <button type="button" className="btn sm ghost" onClick={() => setBest(null)}>
+          Close
+        </button>
+      </span>
+    </div>
+  );
+}
+
+type LinkSettings = { track: boolean; utm: boolean; campaign: string };
+
+/** Click tracking and UTM tags for every link this client posts. */
+export function LinkTracking({ client }: { client: Client }) {
+  const toast = useToast();
+  const { data, reload } = useLoad(() => api<{ settings: LinkSettings; shortBase: string }>(`/clients/${client.id}/links`), [client.id]);
+  const [campaign, setCampaign] = useState<string | null>(null);
+  if (!data) return null;
+  const s = data.settings;
+  const save = async (next: Partial<LinkSettings>) => {
+    await api(`/clients/${client.id}/links`, { method: 'PUT', body: { ...s, ...next } });
+    reload();
+    toast('Link settings saved');
+  };
+  return (
+    <section className="card pad stack">
+      <h3 className="row" style={{ gap: 6 }}>
+        <Link2 size={16} /> Link tracking
+      </h3>
+      <label className="check small">
+        <input type="checkbox" checked={s.track} onChange={(e) => save({ track: e.target.checked })} /> Count clicks with short links
+      </label>
+      <p className="tiny muted" style={{ margin: '-6px 0 0 24px' }}>
+        Links in posts go out as {data.shortBase}abc1234, one per network, so you can see which posts and networks bring visitors. Previews still show the real page.
+      </p>
+      <label className="check small">
+        <input type="checkbox" checked={s.utm} onChange={(e) => save({ utm: e.target.checked })} /> Add UTM tags for Google Analytics
+      </label>
+      {s.utm && (
+        <form
+          className="row small"
+          style={{ marginLeft: 24 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            save({ campaign: campaign ?? s.campaign });
+          }}
+        >
+          Campaign
+          <input className="input" style={{ width: 180 }} placeholder="surecast" value={campaign ?? s.campaign} onChange={(e) => setCampaign(e.target.value)} aria-label="UTM campaign" />
+          <button className="btn sm">Save</button>
+        </form>
+      )}
+      {s.utm && <span className="tiny muted" style={{ marginLeft: 24 }}>Adds utm_source (the network), utm_medium=social and utm_campaign. Links that already have UTM tags are left alone.</span>}
+    </section>
+  );
+}
+
+type Bio = { slug: string; title: string; bio: string; links: { label: string; url: string }[]; showPosts: boolean; accent: string; published: boolean; saved: boolean };
+
+/** A link-in-bio page for Instagram and TikTok profiles. */
+export function BioPage({ client }: { client: Client }) {
+  const toast = useToast();
+  const { data, reload } = useLoad(() => api<{ page: Bio }>(`/clients/${client.id}/bio`), [client.id]);
+  const [form, setForm] = useState<Bio | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const f = form ?? data?.page;
+  if (!f) return null;
+  const set = (patch: Partial<Bio>) => setForm({ ...f, ...patch });
+  const url = `${location.origin}/b/${data?.page.slug}`;
+  return (
+    <section className="card pad stack">
+      <div className="row between">
+        <h3>Link in bio</h3>
+        {data?.page.saved && data.page.published && (
+          <a className="small row" style={{ gap: 4 }} href={url} target="_blank" rel="noreferrer">
+            Open page <ExternalLink size={13} />
+          </a>
+        )}
+      </div>
+      <p className="small muted">One page for the link in {client.name}'s Instagram or TikTok bio: their buttons plus their latest posts. Every click is counted in Analytics.</p>
+      {data?.page.saved && data.page.published && <CopyField value={url} />}
+      <form
+        className="stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError(null);
+          try {
+            await api(`/clients/${client.id}/bio`, { method: 'PUT', body: f });
+            setForm(null);
+            reload();
+            toast('Bio page saved');
+          } catch (err) {
+            setError((err as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label className="field">
+          Address
+          <span className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+            <span className="small muted" style={{ whiteSpace: 'nowrap' }}>
+              {location.host}/b/
+            </span>
+            <input className="input" value={f.slug} onChange={(e) => set({ slug: e.target.value.toLowerCase() })} />
+          </span>
+        </label>
+        <label className="field">
+          Title
+          <input className="input" value={f.title} onChange={(e) => set({ title: e.target.value })} maxLength={120} />
+        </label>
+        <label className="field">
+          Short bio
+          <textarea className="input" rows={2} value={f.bio} onChange={(e) => set({ bio: e.target.value })} maxLength={500} />
+        </label>
+        <div className="stack" style={{ gap: 6 }}>
+          <strong className="small">Buttons</strong>
+          {f.links.map((l, i) => (
+            <div key={i} className="row" style={{ flexWrap: 'nowrap' }}>
+              <input className="input" placeholder="Label" value={l.label} onChange={(e) => set({ links: f.links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} aria-label={`Button ${i + 1} label`} />
+              <input className="input" placeholder="https://" value={l.url} onChange={(e) => set({ links: f.links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} aria-label={`Button ${i + 1} link`} />
+              <button type="button" className="btn ghost sm" aria-label="Remove button" onClick={() => set({ links: f.links.filter((_, j) => j !== i) })}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn sm ghost" style={{ alignSelf: 'flex-start' }} onClick={() => set({ links: [...f.links, { label: '', url: '' }] })} disabled={f.links.length >= 20}>
+            <Plus size={14} /> Add a button
+          </button>
+        </div>
+        <div className="row">
+          <label className="check small">
+            <input type="checkbox" checked={f.showPosts} onChange={(e) => set({ showPosts: e.target.checked })} /> Show latest posts
+          </label>
+          <label className="check small">
+            <input type="checkbox" checked={f.published} onChange={(e) => set({ published: e.target.checked })} /> Page is live
+          </label>
+          <label className="row small" style={{ gap: 6 }}>
+            Colour <input type="color" value={f.accent} onChange={(e) => set({ accent: e.target.value })} aria-label="Button colour" />
+          </label>
+        </div>
+        <div className="bio-preview" aria-label="Preview">
+          <strong>{f.title || client.name}</strong>
+          {f.bio && <div className="tiny muted">{f.bio}</div>}
+          {f.links
+            .filter((l) => l.label)
+            .map((l, i) => (
+              <span key={i} className="bio-btn" style={{ background: f.accent }}>
+                {l.label}
+              </span>
+            ))}
+        </div>
+        <ErrorBanner error={error} />
+        <button className="btn primary" style={{ alignSelf: 'flex-start' }} disabled={busy}>
+          {busy && <Spinner />} {data?.page.saved ? 'Save page' : 'Create page'}
+        </button>
+      </form>
+    </section>
   );
 }

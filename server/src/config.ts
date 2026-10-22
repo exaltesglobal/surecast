@@ -1,4 +1,4 @@
-// All settings come from environment variables (Hostinger: Websites > surecast.live > Environment variables).
+// All settings come from environment variables (Hostinger: Websites > app.surecast.live > Environment variables).
 import { existsSync, readFileSync } from 'node:fs';
 
 // Local development: read .env if present. Hostinger sets real environment variables.

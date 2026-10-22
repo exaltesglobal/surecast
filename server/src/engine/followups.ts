@@ -6,6 +6,7 @@ import { adapter, PublishError, type Adapter } from '../platforms/index.js';
 import { addMs, clip, minutes } from '../util.js';
 import { raiseAlert, resolveAlerts } from './alerts.js';
 import { channelCtx, channelFailed, getChannel } from './channels.js';
+import { prepareLinks } from './links.js';
 
 export type FollowUp = { kind: 'thread' | 'comment'; text: string };
 
@@ -49,7 +50,8 @@ async function sendFollowUps(t: Row, now: Date) {
     const item = items[done];
     const parentId = item.kind === 'comment' ? t.remote_id : (ids[done - 1] ?? t.remote_id);
     try {
-      const r = await a.reply!(channelCtx(channel), { parentId, rootId: t.remote_id }, item.text, `${t.id}-f${done}`);
+      const text = await prepareLinks(item.text, { workspaceId: t.workspace_id, clientId: post.client_id, postId: post.id, targetId: t.id, platform: channel.platform });
+      const r = await a.reply!(channelCtx(channel), { parentId, rootId: t.remote_id }, text, `${t.id}-f${done}`);
       ids[done] = r.remoteId;
       await run('UPDATE post_targets SET followups_done = ?, followups_ids = ?, followups_attempts = 0, followups_error = NULL WHERE id = ?', [done + 1, JSON.stringify(ids), t.id]);
     } catch (e) {

@@ -2,7 +2,7 @@ import { FileBarChart, Lock, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-re
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
-import { Feeds, PostingTimes } from '../components/ClientExtras';
+import { BioPage, Feeds, LinkTracking, PostingTimes } from '../components/ClientExtras';
 import { useApp } from '../components/Layout';
 import { Avatar, CopyField, Empty, ErrorBanner, Loading, Modal, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -135,6 +135,7 @@ export function ClientPage() {
             </div>
           </section>
           <Feeds client={client} channels={data?.channels ?? []} />
+          <BioPage client={client} />
         </div>
 
         <div className="stack">
@@ -163,6 +164,7 @@ export function ClientPage() {
             </button>
           </section>
           <PostingTimes client={client} />
+          <LinkTracking client={client} />
           <ClientSettings />
           <BrandVoice />
         </div>

@@ -10,10 +10,13 @@ type Report = {
   agency: string;
   client: { id: string; name: string; timezone: string; color: string };
   month: string;
-  summary: { total: number; published: number; failed: number; onTime: number; successRate: number | null; retried: number };
-  items: { id: string; status: string; platform: string; channelName: string; channelHandle: string; scheduledAt: string; publishedAt: string | null; delayMinutes: number | null; url: string | null; attempts: number; text: string; error: string | null }[];
+  summary: { total: number; published: number; failed: number; onTime: number; successRate: number | null; retried: number; engagement?: number; clicks?: number };
+  items: { id: string; status: string; platform: string; channelName: string; channelHandle: string; scheduledAt: string; publishedAt: string | null; delayMinutes: number | null; url: string | null; attempts: number; text: string; error: string | null; likes?: number | null; comments?: number | null; shares?: number | null; clicks?: number }[];
   generatedAt: string;
 };
+
+const responseText = (i: { likes?: number | null; comments?: number | null; shares?: number | null; clicks?: number }) =>
+  [i.likes != null && `${i.likes} likes`, i.comments != null && `${i.comments} comments`, i.shares ? `${i.shares} shares` : null, i.clicks ? `${i.clicks} clicks` : null].filter(Boolean).join(' · ');
 
 const thisMonth = () => utcToZoned(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone).date.slice(0, 7);
 
@@ -93,6 +96,18 @@ function ReportBody({ r }: { r: Report }) {
           <div className="label">Did not go out</div>
           <div className="value">{r.summary.failed}</div>
         </div>
+        {!!(r.summary.engagement || r.summary.clicks) && (
+          <>
+            <div className="card stat">
+              <div className="label">Likes, comments and shares</div>
+              <div className="value">{(r.summary.engagement ?? 0).toLocaleString()}</div>
+            </div>
+            <div className="card stat">
+              <div className="label">Link clicks</div>
+              <div className="value">{(r.summary.clicks ?? 0).toLocaleString()}</div>
+            </div>
+          </>
+        )}
       </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         <div className="report" style={{ padding: 0 }}>
@@ -103,6 +118,7 @@ function ReportBody({ r }: { r: Report }) {
                 <th>Scheduled</th>
                 <th>Went out</th>
                 <th>Post</th>
+                <th>Response</th>
                 <th></th>
               </tr>
             </thead>
@@ -131,6 +147,9 @@ function ReportBody({ r }: { r: Report }) {
                     <div className="clamp">{i.text}</div>
                     {i.status !== 'published' && i.error && <div className="tiny" style={{ color: 'var(--error)' }}>{i.error}</div>}
                   </td>
+                  <td className="tiny muted" style={{ whiteSpace: 'nowrap' }}>
+                    {i.likes != null || i.clicks ? responseText(i) : ''}
+                  </td>
                   <td>
                     {i.url && (
                       <a href={i.url} target="_blank" rel="noreferrer" aria-label="Open live post">
@@ -142,7 +161,7 @@ function ReportBody({ r }: { r: Report }) {
               ))}
               {!r.items.length && (
                 <tr>
-                  <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 30 }}>
+                  <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>
                     Nothing was scheduled this month.
                   </td>
                 </tr>

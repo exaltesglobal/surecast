@@ -96,6 +96,12 @@ export interface Adapter {
   followUps?: 'thread' | 'comment';
   /** Posts a text reply (or comment) under parent; rootId is the original post. */
   reply?(ch: ChannelCtx, target: ReplyTarget, text: string, idempotencyKey: string): Promise<PublishResult>;
+  /** Likes, comments, shares and views for published posts, keyed by remote id. Missing ids are skipped. */
+  metrics?(ch: ChannelCtx, remoteIds: string[]): Promise<Record<string, PostMetrics>>;
+  /** Follower (or subscriber) count of the account. */
+  followers?(ch: ChannelCtx): Promise<number | null>;
 }
+
+export type PostMetrics = { likes: number; comments: number; shares: number; views: number | null };
 
 export type ReplyTarget = { parentId: string; rootId: string };

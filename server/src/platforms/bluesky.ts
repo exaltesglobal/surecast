@@ -2,7 +2,7 @@
 // developer app or review. Sessions are refreshed as needed and saved back.
 import { blobOf, http } from './http.js';
 import { URL_RE, graphemes } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type PostMetrics } from './types.js';
 
 type Creds = { service: string; identifier: string; appPassword: string; did: string; accessJwt?: string; refreshJwt?: string };
 
@@ -162,5 +162,24 @@ export const bluesky: Adapter = {
     if (f.length) record.facets = f;
     const { data } = await http<{ uri: string }>('Bluesky', `${c.service}/xrpc/com.atproto.repo.createRecord`, { headers: auth, json: { repo: c.did, collection: 'app.bsky.feed.post', record } });
     return { remoteId: data.uri, url: `https://bsky.app/profile/${ch.handle.replace(/^@/, '')}/post/${data.uri.split('/').pop()}` };
+  },
+  async metrics(ch, uris) {
+    const c = await session(ch);
+    const out: Record<string, PostMetrics> = {};
+    for (let i = 0; i < uris.length; i += 25) {
+      const q = uris.slice(i, i + 25).map((u) => `uris=${encodeURIComponent(u)}`).join('&');
+      const { data } = await http<{ posts: { uri: string; likeCount?: number; replyCount?: number; repostCount?: number; quoteCount?: number }[] }>(
+        'Bluesky',
+        `${c.service}/xrpc/app.bsky.feed.getPosts?${q}`,
+        { headers: { Authorization: `Bearer ${c.accessJwt}` } },
+      );
+      for (const p of data.posts) out[p.uri] = { likes: p.likeCount ?? 0, comments: p.replyCount ?? 0, shares: (p.repostCount ?? 0) + (p.quoteCount ?? 0), views: null };
+    }
+    return out;
+  },
+  async followers(ch) {
+    const c = await session(ch);
+    const { data } = await http<{ followersCount?: number }>('Bluesky', `${c.service}/xrpc/app.bsky.actor.getProfile?actor=${c.did}`, { headers: { Authorization: `Bearer ${c.accessJwt}` } });
+    return data.followersCount ?? null;
   },
 };

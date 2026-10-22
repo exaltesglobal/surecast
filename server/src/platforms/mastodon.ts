@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { one, run } from '../db.js';
 import { blobOf, http } from './http.js';
 import { mastodonLength } from './text.js';
-import { PublishError, type Adapter } from './types.js';
+import { PublishError, type Adapter, type PostMetrics } from './types.js';
 
 type Creds = { instance: string; accessToken: string };
 
@@ -106,5 +106,26 @@ export const mastodon: Adapter = {
       json: { status: text, in_reply_to_id: target.parentId, visibility: 'public' },
     });
     return { remoteId: data.id, url: data.url };
+  },
+  async metrics(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, PostMetrics> = {};
+    for (const id of ids) {
+      try {
+        const { data } = await http<{ favourites_count: number; replies_count: number; reblogs_count: number }>('Mastodon', `${c.instance}/api/v1/statuses/${encodeURIComponent(id)}`, {
+          headers: { Authorization: `Bearer ${c.accessToken}` },
+        });
+        out[id] = { likes: data.favourites_count ?? 0, comments: data.replies_count ?? 0, shares: data.reblogs_count ?? 0, views: null };
+      } catch (e) {
+        // A deleted post is skipped; anything else (rate limit, outage) stops this round.
+        if (!(e instanceof PublishError) || e.httpStatus !== 404) throw e;
+      }
+    }
+    return out;
+  },
+  async followers(ch) {
+    const c = ch.credentials as Creds;
+    const { data } = await http<{ followers_count?: number }>('Mastodon', `${c.instance}/api/v1/accounts/verify_credentials`, { headers: { Authorization: `Bearer ${c.accessToken}` } });
+    return data.followers_count ?? null;
   },
 };

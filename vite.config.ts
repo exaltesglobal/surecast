@@ -7,6 +7,6 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true },
   server: {
     port: 5173,
-    proxy: { '/v1': 'http://localhost:3000', '/m': 'http://localhost:3000' },
+    proxy: { '/v1': 'http://localhost:3000', '/m': 'http://localhost:3000', '/l/': 'http://localhost:3000', '/b/': 'http://localhost:3000' },
   },
 });
