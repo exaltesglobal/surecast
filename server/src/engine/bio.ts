@@ -20,7 +20,7 @@ const slugify = (s: string) =>
 
 export async function getBio(workspaceId: string, clientId: string): Promise<BioPage> {
   const client = await one<{ name: string }>('SELECT name FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]);
-  if (!client) throw new HttpError(404, 'Client not found.');
+  if (!client) throw new HttpError(404, 'Brand not found.');
   const row = await one('SELECT * FROM bio_pages WHERE client_id = ?', [clientId]);
   if (!row) return { slug: slugify(client.name), title: client.name, bio: '', links: [], showPosts: true, accent: '#FF7A1A', published: true, saved: false };
   return { slug: row.slug, title: row.title, bio: row.bio, links: json<BioLink[]>(row.links, []), showPosts: !!row.show_posts, accent: row.accent, published: !!row.published, saved: true };

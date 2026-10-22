@@ -83,7 +83,7 @@ export function EmergencyBrake({ client, as }: { client: Client; as: 'button' | 
         </div>
       ) : null}
       {as === 'button' && !client.paused && (
-        <button className="btn brake-btn" onClick={() => setOpen('pause')} title="Hold every unsent post for this client">
+        <button className="btn brake-btn" onClick={() => setOpen('pause')} title="Hold every unsent post for this brand">
           <OctagonPause size={16} /> Pause all posting
         </button>
       )}
@@ -105,7 +105,7 @@ export function EmergencyBrake({ client, as }: { client: Client; as: 'button' | 
           {open === 'pause' ? (
             <>
               <p className="small muted" style={{ margin: 0 }}>
-                Every post that has not gone out yet is held, on every network, straight away. New posts for this client are held too. Nothing is deleted.
+                Every post that has not gone out yet is held, on every network, straight away. New posts for this brand are held too. Nothing is deleted.
               </p>
               <label className="field">
                 Reason <span className="hint">The team sees this. For example: a recall, a bereavement, an unpaid invoice.</span>
@@ -264,7 +264,7 @@ export function ClientWhatsApp({ client }: { client: Client }) {
         <h3 style={{ margin: 0 }}>WhatsApp and weekly digest</h3>
       </div>
       <label className="field">
-        Client's WhatsApp number{' '}
+        Approver's WhatsApp number{' '}
         <span className="hint">
           {data?.agency ? 'Approval requests go here as well as by email.' : (
             <>
@@ -347,9 +347,9 @@ export function ClientWhatsApp({ client }: { client: Client }) {
             })
           }
         />
-        Email {client.contactEmail ?? 'the client'} a summary every Monday morning
+        Email {client.contactEmail ?? 'the approver'} a summary every Monday morning
       </label>
-      {!client.contactEmail && <span className="tiny muted">Add the client's email in Settings first.</span>}
+      {!client.contactEmail && <span className="tiny muted">Add the approver's email in Settings first.</span>}
       {client.contactEmail && (
         <button
           className="btn sm"

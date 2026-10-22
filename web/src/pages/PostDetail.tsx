@@ -267,7 +267,7 @@ export function PostDetail() {
                 p.comments.map((c) => (
                   <div key={c.id} className="small">
                     <strong>{c.author}</strong>
-                    {c.fromClient && <span className="pill neutral" style={{ marginLeft: 6 }}>Client</span>} <span className="muted tiny">{fmt(c.createdAt, tz, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    {c.fromClient && <span className="pill neutral" style={{ marginLeft: 6 }}>Reviewer</span>} <span className="muted tiny">{fmt(c.createdAt, tz, { dateStyle: 'short', timeStyle: 'short' })}</span>
                     <div style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
                   </div>
                 ))

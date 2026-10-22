@@ -175,7 +175,7 @@ export async function addMoment(workspaceId: string, b: Record<string, unknown>)
   let clientId: string | null = null;
   if (typeof b.clientId === 'string' && b.clientId) {
     const c = await all('SELECT id FROM clients WHERE id = ? AND workspace_id = ?', [b.clientId, workspaceId]);
-    if (!c.length) throw new HttpError(404, 'Client not found.');
+    if (!c.length) throw new HttpError(404, 'Brand not found.');
     clientId = b.clientId;
   }
   const id = newId('mom');

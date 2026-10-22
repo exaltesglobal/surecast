@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
 import { api, workspaceId } from '../lib/api';
 import type { Client, Me } from '../lib/types';
-import { Loading } from './ui';
+import { Loading, Modal } from './ui';
 
 type AppCtx = { me: Me; clients: Client[]; reloadClients: () => Promise<void>; alertCount: number; inboxCount: number; refreshAlerts: () => void; tz: string };
 const Ctx = createContext<AppCtx | null>(null);
@@ -39,6 +39,7 @@ export function Shell() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useTheme();
   const [plan, setPlan] = useState<WorkspaceInfo | null>(null);
+  const [creating, setCreating] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('sc_dismissed') ?? '[]');
@@ -143,7 +144,7 @@ export function Shell() {
               Analytics
             </NavItem>
             <NavItem to="/clients" icon={<Users size={18} />}>
-              Clients
+              Brands
             </NavItem>
             <NavItem to="/moments" icon={<CalendarHeart size={18} />}>
               Moments
@@ -161,22 +162,28 @@ export function Shell() {
             )}
           </nav>
           <div className="spacer" />
-          {me.workspaces.length > 1 && (
-            <select
-              value={me.workspaceId ?? ''}
-              onChange={(e) => {
-                workspaceId.set(e.target.value);
-                window.location.href = '/';
-              }}
-              aria-label="Workspace"
-            >
-              {me.workspaces.map((w) => (
-                <option key={w.id} value={w.id} style={{ color: '#111' }}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            value={me.workspaceId ?? ''}
+            onChange={(e) => {
+              if (e.target.value === '__new') return setCreating(true);
+              workspaceId.set(e.target.value);
+              window.location.href = '/';
+            }}
+            aria-label="Workspace"
+            title="Switch workspace"
+          >
+            {me.workspaces.map((w) => (
+              <option key={w.id} value={w.id} style={{ color: '#111' }}>
+                {w.name}
+              </option>
+            ))}
+            {!me.impersonating && (
+              <option value="__new" style={{ color: '#111' }}>
+                + New workspace…
+              </option>
+            )}
+          </select>
+          {creating && <NewWorkspace onClose={() => setCreating(false)} />}
           <div className="user">
             <span title={me.user.email} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {ws?.name}
@@ -229,6 +236,42 @@ export function Shell() {
         </main>
       </div>
     </Ctx.Provider>
+  );
+}
+
+function NewWorkspace({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const create = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ workspace: { id: string } }>('/workspaces', { body: { name, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+      workspaceId.set(r.workspace.id);
+      window.location.href = '/';
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="New workspace"
+      onClose={onClose}
+      footer={
+        <button className="btn accent" disabled={busy || !name.trim()} onClick={create}>
+          Create workspace
+        </button>
+      }
+    >
+      <p className="small muted">Each workspace has its own brands, channels, team and billing. Use one per agency client group, business unit or side project.</p>
+      <label className="field">
+        Name
+        <input autoFocus value={name} maxLength={120} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && name.trim() && create()} placeholder="e.g. Acme Hospitality Group" />
+      </label>
+      {error && <div className="banner error">{error}</div>}
+    </Modal>
   );
 }
 

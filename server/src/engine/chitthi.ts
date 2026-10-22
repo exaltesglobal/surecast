@@ -129,7 +129,7 @@ export function integrationJson(row: IntegrationRow | null) {
 export async function connectChitthi(workspaceId: string, clientId: string | null, apiKeyRaw: unknown, settingsIn?: unknown) {
   const apiKey = typeof apiKeyRaw === 'string' ? apiKeyRaw.trim() : '';
   if (!/^chk_live_[A-Za-z0-9_-]{8,}$/.test(apiKey)) throw new HttpError(422, 'Paste a Chitthi API key. It starts with chk_live_ (Chitthi > Settings > API keys).');
-  if (clientId && !(await one('SELECT id FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]))) throw new HttpError(404, 'Client not found.');
+  if (clientId && !(await one('SELECT id FROM clients WHERE id = ? AND workspace_id = ?', [clientId, workspaceId]))) throw new HttpError(404, 'Brand not found.');
   const base = config.chitthiUrl;
   let account: string;
   try {

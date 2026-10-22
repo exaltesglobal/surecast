@@ -226,7 +226,7 @@ export async function publishTarget(targetId: string, now = new Date()): Promise
       now,
       clip(guardHit.join(' '), 1000),
     ]);
-    await fail(t, post, channel, { code: 'brand_guard', message: `Stopped by the brand safety guard. ${guardHit.join(' ')}`, hint: "Edit the post to follow the client's rules, then retry." }, now);
+    await fail(t, post, channel, { code: 'brand_guard', message: `Stopped by the brand safety guard. ${guardHit.join(' ')}`, hint: "Edit the post to follow the brand's rules, then retry." }, now);
     return true;
   }
   if (issues.length) {
@@ -379,7 +379,7 @@ async function watchdog(now: Date) {
   );
   for (const t of unapproved) {
     const { post, channel } = await context(t);
-    await fail(t, post, channel, { code: 'not_approved', message: 'The client had not approved this post by its scheduled time', hint: 'Get it approved, then reschedule it.' }, now);
+    await fail(t, post, channel, { code: 'not_approved', message: 'This post had not been approved by its scheduled time', hint: 'Get it approved, then reschedule it.' }, now);
   }
   const missed = await all<TargetRow>("SELECT * FROM post_targets WHERE status IN ('scheduled', 'retrying') AND due_at < ?", [late]);
   for (const t of missed) {

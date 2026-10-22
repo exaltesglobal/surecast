@@ -61,8 +61,8 @@ export function CalendarPage() {
           <p>Times shown in {tz.replace(/_/g, ' ')}.</p>
         </div>
         <div className="row">
-          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
-            <option value="">All clients</option>
+          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Brand">
+            <option value="">All brands</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

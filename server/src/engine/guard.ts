@@ -30,9 +30,9 @@ function contains(text: string, term: string) {
 export function guardIssues(guard: Guard, text: string) {
   const issues: string[] = [];
   const found = guard.banned.filter((w) => contains(text, w));
-  if (found.length) issues.push(`Uses ${found.length === 1 ? 'a word' : 'words'} this client never allows: ${found.map((w) => `"${w}"`).join(', ')}.`);
+  if (found.length) issues.push(`Uses ${found.length === 1 ? 'a word' : 'words'} this brand never allows: ${found.map((w) => `"${w}"`).join(', ')}.`);
   const missing = guard.required.filter((w) => !text.toLowerCase().includes(w.toLowerCase()));
-  if (missing.length) issues.push(`Missing ${missing.length === 1 ? 'a line' : 'lines'} this client always needs: ${missing.map((w) => `"${w}"`).join(', ')}.`);
+  if (missing.length) issues.push(`Missing ${missing.length === 1 ? 'a line' : 'lines'} this brand always needs: ${missing.map((w) => `"${w}"`).join(', ')}.`);
   return issues;
 }
 

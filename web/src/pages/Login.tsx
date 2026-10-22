@@ -51,8 +51,8 @@ export function Login() {
             {[
               'Automatic retries when a network hiccups, so a blip never becomes a missed post.',
               'Pre-flight checks 15 minutes before each slot, and an email the moment anything breaks.',
-              'Client approvals and proof-of-publish reports, with no seats to pay for.',
-              'Flat pricing for agencies. Add clients without watching the bill climb.',
+              'Approvals and proof-of-publish reports for every brand, with no seats to pay for.',
+              'Flat pricing for agencies. Add brands without watching the bill climb.',
             ].map((t) => (
               <li key={t}>
                 <CheckCircle2 size={18} />

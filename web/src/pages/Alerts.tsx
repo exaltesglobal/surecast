@@ -44,7 +44,7 @@ export function AlertsPage() {
                     <span title={fmt(a.createdAt)}>{ago(a.createdAt)}</span>
                     {a.resolvedAt && <span>Resolved {ago(a.resolvedAt)}</span>}
                     {a.postId && <Link to={`/posts/${a.postId}`}>Open post</Link>}
-                    {!a.postId && a.clientId && <Link to={`/clients/${a.clientId}`}>Open client</Link>}
+                    {!a.postId && a.clientId && <Link to={`/clients/${a.clientId}`}>Open brand</Link>}
                   </div>
                 </div>
                 {!a.resolvedAt && (

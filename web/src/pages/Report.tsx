@@ -29,7 +29,7 @@ export function ReportPage() {
     <>
       <div className="row between no-print" style={{ marginBottom: 16 }}>
         <Link to={`/clients/${id}`} className="small">
-          ← Back to client
+          ← Back to brand
         </Link>
         <div className="row">
           <input type="month" className="input" style={{ width: 'auto' }} value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month" />

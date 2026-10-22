@@ -13,30 +13,30 @@ const OPS: Op[] = [
   { method: 'get', path: '/dashboard', tag: 'Workspace', summary: 'What needs attention now: failures, approvals, channels at risk and the next posts.' },
   { method: 'get', path: '/platforms', tag: 'Workspace', summary: 'Networks Surecast can publish to, with their limits.' },
 
-  { method: 'get', path: '/clients', tag: 'Clients', summary: 'All clients with voice, posting times, brand guard, pause state and channel counts.' },
+  { method: 'get', path: '/clients', tag: 'Brands', summary: 'All brands with voice, posting times, brand guard, pause state and channel counts.' },
   {
     method: 'post',
     path: '/clients',
-    tag: 'Clients',
+    tag: 'Brands',
     summary: 'Adds a client.',
     body: [
-      ['name', 'string', 'Client name.', true],
+      ['name', 'string', 'Brand name.', true],
       ['timezone', 'string', 'IANA time zone, e.g. Asia/Kolkata.'],
-      ['approvalRequired', 'boolean', 'Posts wait for the client to approve them.'],
+      ['approvalRequired', 'boolean', 'Posts wait for an approver to sign them off.'],
       ['contactEmail', 'string', 'Where approval requests and the weekly digest go.'],
     ],
   },
   {
     method: 'patch',
     path: '/clients/{id}',
-    tag: 'Clients',
-    summary: 'Updates a client: details, brand voice, brand guard, WhatsApp number and weekly digest.',
+    tag: 'Brands',
+    summary: 'Updates a brand: details, brand voice, brand guard, WhatsApp number and weekly digest.',
     body: [
       ['name', 'string', ''],
       ['voice', 'object', '{ description, audience, dos, donts, examples, language }'],
       ['guard', 'object', '{ banned: string[], required: string[], mode: "block" | "warn" }'],
-      ['whatsappPhone', 'string', 'Client WhatsApp number with country code, for approval requests.'],
-      ['digestEnabled', 'boolean', 'Send the client a weekly summary every Monday.'],
+      ['whatsappPhone', 'string', 'Approver WhatsApp number with country code, for approval requests.'],
+      ['digestEnabled', 'boolean', 'Send the brand contact a weekly summary every Monday.'],
       ['archived', 'boolean', ''],
     ],
   },
@@ -44,7 +44,7 @@ const OPS: Op[] = [
     method: 'post',
     path: '/clients/{id}/pause',
     tag: 'Emergency brake',
-    summary: 'Holds every unsent post for the client, on every network.',
+    summary: 'Holds every unsent post for the brand, on every network.',
     body: [
       ['reason', 'string', 'Why, for the team.'],
       ['until', 'string', 'Optional ISO 8601 time to resume automatically.'],
@@ -52,10 +52,10 @@ const OPS: Op[] = [
     ],
   },
   { method: 'post', path: '/clients/{id}/resume', tag: 'Emergency brake', summary: 'Lifts the brake.', body: [['missed', 'string', 'skip, post_now or queue.']] },
-  { method: 'get', path: '/clients/{id}/queue', tag: 'Clients', summary: 'Weekly posting times.' },
-  { method: 'put', path: '/clients/{id}/queue', tag: 'Clients', summary: 'Replaces the weekly posting times.', body: [['slots', 'array', '[{ day: 0-6, time: "HH:MM" }]', true]] },
-  { method: 'get', path: '/clients/{id}/best-times', tag: 'Analytics', summary: 'When this client’s audience responds best.' },
-  { method: 'get', path: '/clients/{id}/digest', tag: 'Clients', summary: 'Preview of the weekly client digest.' },
+  { method: 'get', path: '/clients/{id}/queue', tag: 'Brands', summary: 'Weekly posting times.' },
+  { method: 'put', path: '/clients/{id}/queue', tag: 'Brands', summary: 'Replaces the weekly posting times.', body: [['slots', 'array', '[{ day: 0-6, time: "HH:MM" }]', true]] },
+  { method: 'get', path: '/clients/{id}/best-times', tag: 'Analytics', summary: 'When this brand’s audience responds best.' },
+  { method: 'get', path: '/clients/{id}/digest', tag: 'Brands', summary: 'Preview of the weekly brand digest.' },
 
   { method: 'get', path: '/channels', tag: 'Channels', summary: 'Connected social accounts and their health.' },
   { method: 'post', path: '/channels/{id}/check', tag: 'Channels', summary: 'Checks a channel’s connection now.' },
@@ -66,7 +66,7 @@ const OPS: Op[] = [
     tag: 'Posts',
     summary: 'Lists posts.',
     query: [
-      ['client', 'string', 'Client id.'],
+      ['client', 'string', 'Brand id.'],
       ['status', 'string', 'draft, awaiting_approval, scheduled, paused, publishing, published, partial, failed, cancelled.'],
     ],
   },
@@ -74,7 +74,7 @@ const OPS: Op[] = [
     method: 'post',
     path: '/posts',
     tag: 'Posts',
-    summary: 'Creates a post. Each channel’s rules and the client’s brand guard are checked first.',
+    summary: 'Creates a post. Each channel’s rules and the brand guard are checked first.',
     body: [
       ['clientId', 'string', '', true],
       ['body', 'string', 'Post text.', true],
@@ -94,7 +94,7 @@ const OPS: Op[] = [
   { method: 'post', path: '/posts/{id}/retry', tag: 'Posts', summary: 'Retries failed channels.' },
   { method: 'post', path: '/posts/{id}/cancel', tag: 'Posts', summary: 'Cancels whatever has not gone out yet.' },
   { method: 'post', path: '/posts/{id}/duplicate', tag: 'Posts', summary: 'Copies a post as a draft.' },
-  { method: 'post', path: '/guard/check', tag: 'Posts', summary: 'Checks text against a client’s brand guard.', body: [['clientId', 'string', '', true], ['text', 'string', '', true]] },
+  { method: 'post', path: '/guard/check', tag: 'Posts', summary: 'Checks text against a brand guard.', body: [['clientId', 'string', '', true], ['text', 'string', '', true]] },
   { method: 'post', path: '/media', tag: 'Media', summary: 'Uploads an image (up to 10 MB) or an MP4, MOV or WebM video (up to 100 MB) as multipart/form-data, field "file".' },
   { method: 'get', path: '/media', tag: 'Media', summary: 'The media library.' },
 
@@ -103,7 +103,7 @@ const OPS: Op[] = [
 
   { method: 'get', path: '/inbox', tag: 'Inbox', summary: 'Comments and WhatsApp messages across every client.', query: [['status', 'string', 'open or done.'], ['client', 'string', ''], ['platform', 'string', '']] },
   { method: 'post', path: '/inbox/{id}/reply', tag: 'Inbox', summary: 'Replies to a comment or WhatsApp message.', body: [['text', 'string', '', true]] },
-  { method: 'post', path: '/inbox/{id}/suggest', tag: 'Inbox', summary: 'Three reply suggestions in the client’s voice.' },
+  { method: 'post', path: '/inbox/{id}/suggest', tag: 'Inbox', summary: 'Three reply suggestions in the brand’s voice.' },
 
   { method: 'get', path: '/analytics', tag: 'Analytics', summary: 'Results for a period.', query: [['client', 'string', ''], ['days', 'integer', '7 to 365.']] },
   { method: 'get', path: '/analytics/export', tag: 'Analytics', summary: 'The same, as CSV.' },
@@ -114,7 +114,7 @@ const OPS: Op[] = [
 
   { method: 'post', path: '/ai/write', tag: 'AI assistant', summary: 'Drafts posts from a brief.' },
   { method: 'post', path: '/ai/adapt', tag: 'AI assistant', summary: 'Rewrites a post for each network.' },
-  { method: 'post', path: '/ai/ideas', tag: 'AI assistant', summary: 'Post ideas for a client or a moment.' },
+  { method: 'post', path: '/ai/ideas', tag: 'AI assistant', summary: 'Post ideas for a brand or a moment.' },
   {
     method: 'post',
     path: '/ai/campaign',
@@ -128,7 +128,7 @@ const OPS: Op[] = [
     method: 'post',
     path: '/integrations/chitthi',
     tag: 'Integrations',
-    summary: 'Connects Chitthi. Without clientId: approvals and alerts on WhatsApp. With clientId: that client’s WhatsApp chats in the inbox.',
+    summary: 'Connects Chitthi. Without clientId: approvals and alerts on WhatsApp. With clientId: that brand’s WhatsApp chats in the inbox.',
     body: [['apiKey', 'string', 'chk_live_...', true], ['clientId', 'string', ''], ['settings', 'object', '{ alertPhones, alerts, approvals, approvalTemplate, alertTemplate }']],
   },
 

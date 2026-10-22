@@ -248,12 +248,12 @@ function AgentAccess() {
         <Bot size={18} style={{ verticalAlign: -3 }} /> Connect AI agents (MCP)
       </h2>
       <p className="small muted">
-        Claude, ChatGPT, Cursor and other agents can list clients, schedule posts into the queue, check delivery, read analytics and answer comments. Add this server to the agent with an API key from above as a Bearer token.
+        Claude, ChatGPT, Cursor and other agents can list brands, schedule posts into the queue, check delivery, read analytics and answer comments. Add this server to the agent with an API key from above as a Bearer token.
       </p>
       <CopyField value={url} />
       <div className="tiny muted">For Claude Code:</div>
       <CopyField value={`claude mcp add --transport http surecast ${url} --header "Authorization: Bearer sc_live_..."`} />
-      <p className="tiny muted">Posts from agents get the same checks, client approval and delivery guarantees as posts made here. Revoke the key to cut an agent off.</p>
+      <p className="tiny muted">Posts from agents get the same checks, approvals and delivery guarantees as posts made here. Revoke the key to cut an agent off.</p>
       <Link to="/developers" className="small">
         Full API reference, MCP setup and webhook signatures
       </Link>
@@ -351,7 +351,7 @@ function Snippets() {
         {data?.snippets.map((sn) => (
           <div key={sn.id} className="list-item">
             <div className="grow" style={{ minWidth: 0 }}>
-              <strong className="small">{sn.name}</strong> <span className="tiny muted">{sn.clientId ? clients.find((c) => c.id === sn.clientId)?.name : 'All clients'}</span>
+              <strong className="small">{sn.name}</strong> <span className="tiny muted">{sn.clientId ? clients.find((c) => c.id === sn.clientId)?.name : 'All brands'}</span>
               <div className="tiny muted clamp">{sn.body}</div>
             </div>
             <button
@@ -383,8 +383,8 @@ function Snippets() {
       >
         <div className="row">
           <input className="input" style={{ flex: 1, minWidth: 160 }} required placeholder="Name, e.g. Bakery hashtags" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Snippet name" />
-          <select className="input" style={{ width: 'auto' }} value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} aria-label="Client">
-            <option value="">All clients</option>
+          <select className="input" style={{ width: 'auto' }} value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} aria-label="Brand">
+            <option value="">All brands</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -449,7 +449,7 @@ function WhatsApp() {
         <MessageCircle size={18} style={{ verticalAlign: -3, color: '#25d366' }} /> WhatsApp (Chitthi)
       </h2>
       <p className="small muted" style={{ margin: 0 }}>
-        Clients answer WhatsApp faster than email. Connect your Chitthi account and approval requests go to each client's WhatsApp, and failed posts reach your team's phones within a minute.
+        Reviewers answer WhatsApp faster than email. Connect your Chitthi account and approval requests go to each approver's WhatsApp, and failed posts reach your team's phones within a minute.
       </p>
       {!agency ? (
         <>
@@ -488,7 +488,7 @@ function WhatsApp() {
             {agency.lastError && <div className="tiny" style={{ color: 'var(--error)' }}>{agency.lastError}</div>}
           </div>
           <label className="check">
-            <input type="checkbox" checked={form.approvals} onChange={(e) => setForm({ ...form, approvals: e.target.checked })} /> Send approval requests to clients on WhatsApp
+            <input type="checkbox" checked={form.approvals} onChange={(e) => setForm({ ...form, approvals: e.target.checked })} /> Send approval requests to approvers on WhatsApp
           </label>
           <label className="check">
             <input type="checkbox" checked={form.alerts} onChange={(e) => setForm({ ...form, alerts: e.target.checked })} /> Send failed-post alerts to these phones
@@ -497,7 +497,7 @@ function WhatsApp() {
           <details>
             <summary className="small">Templates for when the 24-hour window is closed</summary>
             <p className="tiny muted">
-              WhatsApp only lets businesses send free text within 24 hours of the person's last message. Outside it, Surecast sends these approved Chitthi templates instead. Approval template variables: {'{{1}}'} client name, {'{{2}}'} review link. Alert template: {'{{1}}'} summary, {'{{2}}'} link.
+              WhatsApp only lets businesses send free text within 24 hours of the person's last message. Outside it, Surecast sends these approved Chitthi templates instead. Approval template variables: {'{{1}}'} brand name, {'{{2}}'} review link. Alert template: {'{{1}}'} summary, {'{{2}}'} link.
             </p>
             <div className="grid two">
               <label className="field">
