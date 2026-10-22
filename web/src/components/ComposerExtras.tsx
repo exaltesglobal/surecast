@@ -35,12 +35,12 @@ export function Extras(props: {
   const [open, setOpen] = useState(() => ({ thread: thread.length > 0, comment: !!props.firstComment, recycle: props.recycle.days > 0 }));
   const threadNets = platforms.filter((p) => THREADS.includes(p));
   const commentOnly = platforms.filter((p) => !THREADS.includes(p));
-  const tightest = threadNets.length ? Math.min(...threadNets.map((p) => ({ x: 280, bluesky: 300, mastodon: 500, telegram: 4096 })[p as 'x'] ?? 280)) : 280;
+  const tightest = threadNets.length ? Math.min(...threadNets.map((p) => ({ x: 280, bluesky: 300, mastodon: 500, threads: 500, telegram: 4096 })[p as 'x'] ?? 280)) : 280;
 
   return (
     <div className="stack" style={{ gap: 10 }}>
       <div className="row" style={{ gap: 6 }}>
-        <button type="button" className={`btn sm ${open.thread ? 'on' : ''}`} onClick={() => setOpen({ ...open, thread: !open.thread })} disabled={!threadNets.length} title={threadNets.length ? '' : 'Threads work on X, Bluesky, Mastodon and Telegram'}>
+        <button type="button" className={`btn sm ${open.thread ? 'on' : ''}`} onClick={() => setOpen({ ...open, thread: !open.thread })} disabled={!threadNets.length} title={threadNets.length ? '' : 'Threads work on X, Bluesky, Mastodon, Threads and Telegram'}>
           <ListPlus size={14} /> Thread
         </button>
         <button type="button" className={`btn sm ${open.comment ? 'on' : ''}`} onClick={() => setOpen({ ...open, comment: !open.comment })}>

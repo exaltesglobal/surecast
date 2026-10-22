@@ -435,3 +435,28 @@ export async function explainResults(workspaceId: string, b: Record<string, any>
   });
   return data as { headline: string; wins: string[]; watch: string[]; next: string[] };
 }
+
+/** Three short reply options to a comment, in the client's voice. */
+export async function suggestReplies(workspaceId: string, itemId: string) {
+  const item = await one<{ client_id: string; platform: string; body: string; author_name: string; post_id: string; target_id: string }>(
+    'SELECT client_id, platform, body, author_name, post_id, target_id FROM inbox_items WHERE id = ? AND workspace_id = ?',
+    [itemId, workspaceId],
+  );
+  if (!item) throw new HttpError(404, 'That message is no longer in the inbox.');
+  const ctx = await context(workspaceId, item.client_id);
+  const post = await one<{ text: string }>('SELECT COALESCE(t.body_override, p.body) AS text FROM post_targets t JOIN posts p ON p.id = t.post_id WHERE t.id = ?', [item.target_id]);
+  const a = adapter(item.platform);
+  const data = await call(workspaceId, {
+    task: 'reply',
+    system: system(ctx, STYLE[item.platform] ?? ''),
+    content: text(
+      `Someone commented on ${ctx.name}'s ${a.label} post. Suggest 3 different short replies from ${ctx.name}, each under ${Math.min(a.limits.maxChars, 280)} characters. ` +
+        'Be warm and specific to what they said. Answer questions only with facts found in the post; if the answer is not there, invite them to get in touch instead of guessing. ' +
+        'If the comment is rude or spam, suggest calm, short replies or a polite thank-you. No hashtags.\n\n' +
+        `<source>\nPost: ${post?.text ?? ''}\n\nComment from ${item.author_name}: ${item.body}\n</source>`,
+    ),
+    schema: obj({ replies: STRS }),
+    effort: 'low',
+  });
+  return { replies: (data.replies as string[]).slice(0, 3) };
+}

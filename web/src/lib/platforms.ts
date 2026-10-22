@@ -6,10 +6,13 @@ export const PLATFORM: Record<string, { label: string; color: string; short: str
   facebook: { label: 'Facebook', color: '#1877f2', short: 'f' },
   instagram: { label: 'Instagram', color: '#d62976', short: 'IG' },
   x: { label: 'X', color: '#111111', short: 'X' },
+  threads: { label: 'Threads', color: '#000000', short: '@' },
+  pinterest: { label: 'Pinterest', color: '#e60023', short: 'P' },
+  google: { label: 'Google Business', color: '#1a73e8', short: 'G' },
 };
 
 /** Networks where a post can continue as a thread of replies. The rest only take a first comment. */
-export const THREADS = ['x', 'bluesky', 'mastodon', 'telegram'];
+export const THREADS = ['x', 'bluesky', 'mastodon', 'threads', 'telegram'];
 
 export const platformInfo = (p: string) => PLATFORM[p] ?? { label: p, color: '#4b5563', short: p.slice(0, 1).toUpperCase() };
 

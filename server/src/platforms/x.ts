@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { xLength } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx, type PostMetrics } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
 
 type Creds = { accessToken: string; refreshToken: string; username: string };
 
@@ -137,5 +137,39 @@ export const x: Adapter = {
     const t = await token(ch);
     const { data } = await http<{ data: { public_metrics?: { followers_count: number } } }>('X', 'https://api.x.com/2/users/me?user.fields=public_metrics', { headers: { Authorization: `Bearer ${t}` } });
     return data.data.public_metrics?.followers_count ?? null;
+  },
+  async comments(ch, ids) {
+    // Reading replies uses X's search API, which needs the Basic plan or higher; on lower plans
+    // X answers 403 and the inbox simply has nothing from X.
+    const t = await token(ch);
+    const out: Record<string, RemoteComment[]> = {};
+    type T = { id: string; text: string; author_id: string; created_at: string; referenced_tweets?: { type: string; id: string }[] };
+    type U = { id: string; name: string; username: string; profile_image_url?: string };
+    for (const id of ids) {
+      try {
+        const q = new URLSearchParams({ query: `conversation_id:${id}`, 'tweet.fields': 'author_id,created_at,referenced_tweets', expansions: 'author_id', 'user.fields': 'username,name,profile_image_url', max_results: '50' });
+        const { data } = await http<{ data?: T[]; includes?: { users?: U[] } }>('X', `https://api.x.com/2/tweets/search/recent?${q}`, { headers: { Authorization: `Bearer ${t}` } });
+        const users = new Map((data.includes?.users ?? []).map((u) => [u.id, u]));
+        out[id] = (data.data ?? [])
+          .filter((tw) => tw.author_id !== ch.externalId)
+          .map((tw) => {
+            const u = users.get(tw.author_id);
+            return {
+              id: tw.id,
+              parentId: tw.referenced_tweets?.find((r) => r.type === 'replied_to')?.id ?? id,
+              authorName: u?.name ?? 'Someone',
+              authorHandle: u ? `@${u.username}` : '',
+              authorAvatar: u?.profile_image_url ?? null,
+              text: tw.text,
+              createdAt: new Date(tw.created_at),
+              url: u ? `https://x.com/${u.username}/status/${tw.id}` : null,
+            };
+          });
+      } catch (e) {
+        if (e instanceof PublishError && e.httpStatus === 403) return out;
+        throw e;
+      }
+    }
+    return out;
   },
 };

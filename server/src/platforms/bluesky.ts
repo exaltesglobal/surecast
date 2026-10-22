@@ -2,7 +2,7 @@
 // developer app or review. Sessions are refreshed as needed and saved back.
 import { blobOf, http } from './http.js';
 import { URL_RE, graphemes } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx, type PostMetrics } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
 
 type Creds = { service: string; identifier: string; appPassword: string; did: string; accessJwt?: string; refreshJwt?: string };
 
@@ -181,5 +181,40 @@ export const bluesky: Adapter = {
     const c = await session(ch);
     const { data } = await http<{ followersCount?: number }>('Bluesky', `${c.service}/xrpc/app.bsky.actor.getProfile?actor=${c.did}`, { headers: { Authorization: `Bearer ${c.accessJwt}` } });
     return data.followersCount ?? null;
+  },
+  async comments(ch, uris) {
+    const c = await session(ch);
+    const out: Record<string, RemoteComment[]> = {};
+    type Node = { post?: { uri: string; author: { did: string; handle: string; displayName?: string; avatar?: string }; record: { text?: string; createdAt?: string; reply?: { parent?: { uri: string } } } }; replies?: Node[] };
+    for (const uri of uris) {
+      try {
+        const { data } = await http<{ thread: Node }>('Bluesky', `${c.service}/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=6&parentHeight=0`, {
+          headers: { Authorization: `Bearer ${c.accessJwt}` },
+        });
+        const list: RemoteComment[] = [];
+        const walk = (n: Node) => {
+          for (const r of n.replies ?? []) {
+            const p = r.post;
+            if (p && p.author.did !== c.did)
+              list.push({
+                id: p.uri,
+                parentId: p.record.reply?.parent?.uri ?? uri,
+                authorName: p.author.displayName || p.author.handle,
+                authorHandle: `@${p.author.handle}`,
+                authorAvatar: p.author.avatar ?? null,
+                text: p.record.text ?? '',
+                createdAt: new Date(p.record.createdAt ?? Date.now()),
+                url: `https://bsky.app/profile/${p.author.handle}/post/${p.uri.split('/').pop()}`,
+              });
+            walk(r);
+          }
+        };
+        walk(data.thread);
+        out[uri] = list;
+      } catch (e) {
+        if (!(e instanceof PublishError) || (e.httpStatus !== 400 && e.httpStatus !== 404)) throw e;
+      }
+    }
+    return out;
   },
 };

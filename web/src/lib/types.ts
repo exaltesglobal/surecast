@@ -54,6 +54,7 @@ export type Target = {
   remoteUrl: string | null;
   error: { code: string; message: string; hint: string } | null;
   followUps: { total: number; done: number; error: string | null; pending: boolean } | null;
+  metrics: { likes: number | null; comments: number | null; shares: number | null; views: number | null; clicks: number; at: string | null } | null;
   log?: Attempt[];
 };
 

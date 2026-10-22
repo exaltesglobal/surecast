@@ -10,8 +10,10 @@ import { authenticate, HttpError, type Env } from './auth.js';
 import { aiRoutes } from './routes/ai.js';
 import { analyticsRoutes, linkRoutes } from './routes/analytics.js';
 import { channelRoutes } from './routes/channels.js';
+import { inboxRoutes } from './routes/inbox.js';
 import { insightRoutes } from './routes/insights.js';
 import { libraryRoutes } from './routes/library.js';
+import { mcpRoutes } from './routes/mcp.js';
 import { postRoutes } from './routes/posts.js';
 import { mediaRoutes, publicRoutes } from './routes/public.js';
 import { accountRoutes, workspaceRoutes } from './routes/workspace.js';
@@ -40,8 +42,13 @@ export function createApp() {
   v1.route('/', aiRoutes);
   v1.route('/', libraryRoutes);
   v1.route('/', analyticsRoutes);
+  v1.route('/', inboxRoutes);
+  v1.route('/', mcpRoutes);
   v1.all('*', (c) => c.json({ error: 'Not found' }, 404));
   app.route('/v1', v1);
+  // Agents can also use the shorter https://app.surecast.live/mcp.
+  app.use('/mcp', authenticate);
+  app.route('/', mcpRoutes);
   app.route('/', mediaRoutes);
   app.route('/', linkRoutes);
 

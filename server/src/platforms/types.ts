@@ -1,7 +1,7 @@
 // Every social network is an adapter behind this interface. The publishing engine only
 // knows about adapters, so adding a network never touches the engine.
 
-export type Platform = 'bluesky' | 'mastodon' | 'telegram' | 'linkedin' | 'facebook' | 'instagram' | 'x';
+export type Platform = 'bluesky' | 'mastodon' | 'telegram' | 'linkedin' | 'facebook' | 'instagram' | 'x' | 'threads' | 'pinterest' | 'google';
 
 /**
  * How a failure should be handled:
@@ -100,7 +100,16 @@ export interface Adapter {
   metrics?(ch: ChannelCtx, remoteIds: string[]): Promise<Record<string, PostMetrics>>;
   /** Follower (or subscriber) count of the account. */
   followers?(ch: ChannelCtx): Promise<number | null>;
+  /** Comments and replies from other people under published posts, keyed by the post's remote id. */
+  comments?(ch: ChannelCtx, remoteIds: string[]): Promise<Record<string, RemoteComment[]>>;
+  /**
+   * Answers a comment from the inbox. Networks without this answer with reply(), using the
+   * comment as the parent.
+   */
+  answer?(ch: ChannelCtx, comment: { id: string; rootId: string }, text: string, idempotencyKey: string): Promise<PublishResult>;
 }
+
+export type RemoteComment = { id: string; parentId: string; authorName: string; authorHandle: string; authorAvatar: string | null; text: string; createdAt: Date; url: string | null };
 
 export type PostMetrics = { likes: number; comments: number; shares: number; views: number | null };
 

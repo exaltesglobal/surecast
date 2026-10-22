@@ -1,4 +1,4 @@
-import { Hash, KeyRound, Trash2, Webhook } from 'lucide-react';
+import { Bot, Hash, KeyRound, Trash2, Webhook } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../components/Layout';
@@ -27,7 +27,7 @@ export function SettingsPage() {
           <Team admin={admin} />
           <Snippets />
         </div>
-        <div className="stack">{admin ? <><ApiKeys /><Webhooks /></> : <div className="card pad muted">Ask a workspace admin to manage API keys and webhooks.</div>}</div>
+        <div className="stack">{admin ? <><ApiKeys /><AgentAccess /><Webhooks /></> : <div className="card pad muted">Ask a workspace admin to manage API keys and webhooks.</div>}</div>
       </div>
     </>
   );
@@ -223,6 +223,25 @@ function ApiKeys() {
           <CopyField value={created} />
         </Modal>
       )}
+    </section>
+  );
+}
+
+/** How to connect AI agents through the MCP server. */
+function AgentAccess() {
+  const url = `${location.origin}/mcp`;
+  return (
+    <section className="card pad stack">
+      <h2>
+        <Bot size={18} style={{ verticalAlign: -3 }} /> Connect AI agents (MCP)
+      </h2>
+      <p className="small muted">
+        Claude, ChatGPT, Cursor and other agents can list clients, schedule posts into the queue, check delivery, read analytics and answer comments. Add this server to the agent with an API key from above as a Bearer token.
+      </p>
+      <CopyField value={url} />
+      <div className="tiny muted">For Claude Code:</div>
+      <CopyField value={`claude mcp add --transport http surecast ${url} --header "Authorization: Bearer sc_live_..."`} />
+      <p className="tiny muted">Posts from agents get the same checks, client approval and delivery guarantees as posts made here. Revoke the key to cut an agent off.</p>
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { useApp } from '../components/Layout';
 import { Avatar, ErrorBanner, Loading, Pill, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
-import { fmt } from '../lib/time';
+import { ago, fmt } from '../lib/time';
 import type { Post } from '../lib/types';
 
 const OUTCOME: Record<string, string> = {
@@ -128,6 +128,16 @@ export function PostDetail() {
                         View live <ExternalLink size={13} />
                       </a>
                     )}
+                  </div>
+                )}
+                {t.metrics && (
+                  <div className="row small" style={{ gap: 14 }}>
+                    {t.metrics.likes != null && <span><strong>{t.metrics.likes}</strong> likes</span>}
+                    {t.metrics.comments != null && <span><strong>{t.metrics.comments}</strong> comments</span>}
+                    {t.metrics.shares != null && <span><strong>{t.metrics.shares}</strong> shares</span>}
+                    {t.metrics.views != null && <span><strong>{t.metrics.views}</strong> views</span>}
+                    <span><strong>{t.metrics.clicks}</strong> link clicks</span>
+                    {t.metrics.at && <span className="tiny muted">updated {ago(t.metrics.at)}</span>}
                   </div>
                 )}
                 {t.followUps && (t.followUps.done < t.followUps.total || t.followUps.error) && (
