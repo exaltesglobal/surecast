@@ -1,10 +1,10 @@
 import './env.js';
 
 import { all, db, migrate, run } from '../src/db.js';
-import { overrideAdapter, PublishError, type Adapter, type PostMetrics, type PublishInput } from '../src/platforms/index.js';
+import { overrideAdapter, PublishError, type Adapter, type PostMetrics, type PublishInput, type RemoteComment } from '../src/platforms/index.js';
 import { encrypt, newId, token } from '../src/util.js';
 
-const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage', 'snippets', 'feeds', 'channel_stats', 'links', 'link_clicks', 'bio_pages'];
+const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage', 'snippets', 'feeds', 'channel_stats', 'links', 'link_clicks', 'bio_pages', 'inbox_items'];
 
 export async function resetDb() {
   await migrate();
@@ -21,6 +21,7 @@ export function fakeAdapter(platform = 'bluesky') {
   const replies: { parentId: string; rootId: string; text: string }[] = [];
   const stats: Record<string, PostMetrics> = {};
   const audience = { followers: 100 as number | null };
+  const inbox: Record<string, RemoteComment[]> = {};
   let checkResult: Behaviour = 'ok';
   const a: Adapter = {
     platform: platform as Adapter['platform'],
@@ -63,6 +64,9 @@ export function fakeAdapter(platform = 'bluesky') {
     async followers() {
       return audience.followers;
     },
+    async comments(_ch, ids) {
+      return Object.fromEntries(ids.filter((id) => inbox[id]).map((id) => [id, inbox[id]]));
+    },
   };
   overrideAdapter(a);
   return {
@@ -72,6 +76,7 @@ export function fakeAdapter(platform = 'bluesky') {
     replies,
     stats,
     audience,
+    inbox,
     setCheck: (b: Behaviour) => (checkResult = b),
   };
 }

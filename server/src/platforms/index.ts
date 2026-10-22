@@ -1,12 +1,15 @@
 import { bluesky } from './bluesky.js';
+import { google } from './google.js';
 import { linkedin } from './linkedin.js';
 import { mastodon } from './mastodon.js';
 import { facebook, instagram } from './meta.js';
+import { pinterest } from './pinterest.js';
 import { telegram } from './telegram.js';
+import { threads } from './threads.js';
 import type { Adapter, Platform } from './types.js';
 import { x } from './x.js';
 
-const ADAPTERS: Record<Platform, Adapter> = { bluesky, mastodon, telegram, linkedin, facebook, instagram, x };
+const ADAPTERS: Record<Platform, Adapter> = { bluesky, mastodon, telegram, threads, linkedin, facebook, instagram, x, pinterest, google };
 
 /** Tests swap in fake adapters here. */
 const overrides = new Map<string, Adapter>();

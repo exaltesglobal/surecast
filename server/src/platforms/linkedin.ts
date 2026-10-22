@@ -6,7 +6,7 @@
 import { config } from '../config.js';
 import { http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter, type PostMetrics } from './types.js';
+import { PublishError, type Adapter, type PostMetrics, type RemoteComment } from './types.js';
 
 type Creds = { accessToken: string; personUrn: string };
 
@@ -108,5 +108,40 @@ export const linkedin: Adapter = {
       }
     }
     return out;
+  },
+  async comments(ch, urns) {
+    // Like reactions, reading comments needs LinkedIn's Community Management API.
+    const c = ch.credentials as Creds;
+    const out: Record<string, RemoteComment[]> = {};
+    type C = { id?: string; commentUrn?: string; actor: string; message?: { text: string }; created?: { time: number }; parentComment?: string };
+    for (const urn of urns) {
+      try {
+        const { data } = await http<{ elements: C[] }>('LinkedIn', `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(urn)}/comments`, { headers: rest(c.accessToken) });
+        out[urn] = data.elements
+          .filter((x) => x.actor !== c.personUrn)
+          .map((x) => ({
+            id: x.commentUrn ?? x.id ?? '',
+            parentId: x.parentComment ?? urn,
+            authorName: 'LinkedIn member',
+            authorHandle: '',
+            authorAvatar: null,
+            text: x.message?.text ?? '',
+            createdAt: new Date(x.created?.time ?? Date.now()),
+            url: `https://www.linkedin.com/feed/update/${urn}/`,
+          }));
+      } catch (e) {
+        if (e instanceof PublishError && (e.httpStatus === 403 || e.httpStatus === 404)) return out;
+        throw e;
+      }
+    }
+    return out;
+  },
+  async answer(ch, comment, text) {
+    const c = ch.credentials as Creds;
+    const { data } = await http<{ id?: string; commentUrn?: string }>('LinkedIn', `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(comment.rootId)}/comments`, {
+      headers: rest(c.accessToken),
+      json: { actor: c.personUrn, object: comment.rootId, parentComment: comment.id, message: { text } },
+    });
+    return { remoteId: data.commentUrn ?? data.id ?? '', url: `https://www.linkedin.com/feed/update/${comment.rootId}/` };
   },
 };

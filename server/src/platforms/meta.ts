@@ -6,7 +6,7 @@
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter, type Candidate, type ChannelCtx, type PostMetrics } from './types.js';
+import { PublishError, type Adapter, type Candidate, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
 
 type Creds = { pageToken: string; pageId: string; igUserId?: string };
 
@@ -145,6 +145,23 @@ export const facebook: Adapter = {
     const p = await graph<{ followers_count?: number; fan_count?: number }>(`${G}/${c.pageId}?fields=followers_count,fan_count&access_token=${c.pageToken}`);
     return p.followers_count ?? p.fan_count ?? null;
   },
+  async comments(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, RemoteComment[]> = {};
+    type C = { id: string; message?: string; created_time: string; permalink_url?: string; from?: { id: string; name: string }; parent?: { id: string } };
+    for (const id of ids) {
+      const r = await graph<{ data: C[] }>(`${G}/${id}/comments?filter=stream&order=chronological&limit=100&fields=id,message,created_time,permalink_url,from,parent&access_token=${c.pageToken}`);
+      out[id] = r.data
+        .filter((x) => x.from?.id !== c.pageId)
+        .map((x) => ({ id: x.id, parentId: x.parent?.id ?? id, authorName: x.from?.name ?? 'Facebook user', authorHandle: '', authorAvatar: null, text: x.message ?? '', createdAt: new Date(x.created_time), url: x.permalink_url ?? null }));
+    }
+    return out;
+  },
+  async answer(ch, comment, text) {
+    const c = ch.credentials as Creds;
+    const r = await graph<{ id: string }>(`${G}/${comment.id}/comments`, { json: { message: text, access_token: c.pageToken } });
+    return { remoteId: r.id, url: null };
+  },
 };
 
 async function waitForContainer(id: string, token: string) {
@@ -215,5 +232,30 @@ export const instagram: Adapter = {
   async followers(ch) {
     const c = ch.credentials as Creds;
     return (await graph<{ followers_count?: number }>(`${G}/${c.igUserId}?fields=followers_count&access_token=${c.pageToken}`)).followers_count ?? null;
+  },
+  async comments(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, RemoteComment[]> = {};
+    type C = { id: string; text?: string; timestamp: string; username?: string; from?: { id: string; username: string }; replies?: { data: C[] } };
+    for (const id of ids) {
+      const r = await graph<{ data: C[] }>(`${G}/${id}/comments?limit=100&fields=id,text,timestamp,username,from,replies{id,text,timestamp,username,from}&access_token=${c.pageToken}`);
+      const list: RemoteComment[] = [];
+      const add = (x: C, parentId: string) => {
+        if (x.from?.id === c.igUserId) return;
+        const who = x.from?.username ?? x.username ?? 'instagram user';
+        list.push({ id: x.id, parentId, authorName: who, authorHandle: `@${who}`, authorAvatar: null, text: x.text ?? '', createdAt: new Date(x.timestamp), url: null });
+      };
+      for (const x of r.data) {
+        add(x, id);
+        for (const y of x.replies?.data ?? []) add(y, x.id);
+      }
+      out[id] = list;
+    }
+    return out;
+  },
+  async answer(ch, comment, text) {
+    const c = ch.credentials as Creds;
+    const r = await graph<{ id: string }>(`${G}/${comment.id}/replies`, { json: { message: text, access_token: c.pageToken } });
+    return { remoteId: r.id, url: null };
   },
 };

@@ -17,7 +17,9 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 - **Calendar, composer and queue.** The composer lets you change the text for each network, shows live character counts against each platform's rules, previews the post, and takes images with alt text. Editing a post keeps its scheduled time.
 - **Team** with unlimited seats and owner, admin and editor roles.
 - **Writing assistant** (AI). Drafts three post options from a short brief, rewrites a post (shorter, punchier, better hook, call to action, translate, or any instruction), adapts one post into a version for each network within its limits, suggests hashtags, writes image alt text, reviews a post for typos, risky claims and leftover placeholders before it goes out, and suggests post ideas. It writes in each client's **brand voice**, which you can describe by hand or have it learn from the client's past posts. It never changes a post on its own: every suggestion has a "Use this" button. Each workspace gets a daily request limit (`AI_DAILY_LIMIT`, default 300).
-- **API keys and signed webhooks**, so scripts, Zapier and AI agents can schedule posts.
+- **API keys and signed webhooks**, so scripts and Zapier can schedule posts.
+- **An MCP server**, so AI agents can plan, schedule and report on posts and answer comments.
+- **A unified inbox** for comments and replies from every network, with AI reply suggestions in each client's voice.
 - **Dark mode**, and a layout that works on mobile.
 
 ### Networks
@@ -29,13 +31,19 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 | Telegram channels | Works now (connects with a bot token) |
 | LinkedIn | Built. Switched on when `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` are set |
 | Facebook Pages and Instagram | Built. Switched on when `META_APP_ID` and `META_APP_SECRET` are set; the Meta app must pass App Review |
-| X | Built. Switched on when `X_CLIENT_ID` and `X_CLIENT_SECRET` are set; needs a paid API plan |
+| X | Built. Switched on when `X_CLIENT_ID` and `X_CLIENT_SECRET` are set; needs a paid API plan (Basic or higher for inbox replies) |
+| Threads | Built. Switched on when `THREADS_APP_ID` and `THREADS_APP_SECRET` are set (a Meta app with the Threads use case) |
+| Pinterest | Built. Switched on when `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` are set; each board is a channel, every Pin needs an image |
+| Google Business Profile | Built. Switched on when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; Google must grant Business Profile API access |
 
 The OAuth redirect URLs to register with each developer app are:
 
 - `https://app.surecast.live/v1/oauth/linkedin/callback`
 - `https://app.surecast.live/v1/oauth/facebook/callback` (used by both Facebook and Instagram)
 - `https://app.surecast.live/v1/oauth/x/callback`
+- `https://app.surecast.live/v1/oauth/threads/callback`
+- `https://app.surecast.live/v1/oauth/pinterest/callback`
+- `https://app.surecast.live/v1/oauth/google/callback`
 - `https://app.surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
 
 ## Stack
@@ -104,3 +112,13 @@ curl https://app.surecast.live/v1/posts -H "Authorization: Bearer sc_live_..." -
 ```
 
 Webhooks receive `post.published` and `post.failed`. Each one is signed with a hex HMAC-SHA256 of the raw body, sent in `X-Surecast-Signature`.
+
+## MCP server for AI agents
+
+Surecast is also an MCP server, so Claude, ChatGPT, Cursor and other agents can plan, schedule and check posts, read results and answer comments. Point the agent at `https://app.surecast.live/mcp` (Streamable HTTP) with the header `Authorization: Bearer sc_live_...`. For Claude Code:
+
+```bash
+claude mcp add --transport http surecast https://app.surecast.live/mcp --header "Authorization: Bearer sc_live_..."
+```
+
+Tools: `list_clients`, `create_post`, `list_posts`, `get_post`, `cancel_post`, `next_free_slot`, `get_analytics`, `best_posting_times`, `list_inbox`, `reply_to_comment` and `draft_posts_with_ai`. Posts made by agents go through the same checks, approval steps and delivery guarantees as posts made in the app.

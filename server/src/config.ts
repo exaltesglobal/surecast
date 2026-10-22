@@ -32,6 +32,9 @@ export const config = {
   linkedin: app(env.LINKEDIN_CLIENT_ID, env.LINKEDIN_CLIENT_SECRET),
   meta: app(env.META_APP_ID, env.META_APP_SECRET),
   x: app(env.X_CLIENT_ID, env.X_CLIENT_SECRET),
+  threads: app(env.THREADS_APP_ID, env.THREADS_APP_SECRET),
+  pinterest: app(env.PINTEREST_APP_ID, env.PINTEREST_APP_SECRET),
+  google: app(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
   /** The AI writing assistant. Switched off when no key is set. */
   ai: {
     apiKey: env.ANTHROPIC_API_KEY ?? '',

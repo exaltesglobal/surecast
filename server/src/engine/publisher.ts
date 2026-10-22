@@ -16,6 +16,7 @@ import { channelCtx, channelFailed, channelOk, checkChannel, getChannel, sweepCh
 import { contentIssues, mediaFiles, mediaMeta } from './content.js';
 import { checkFeeds } from './feeds.js';
 import { followUpsFor, runFollowUps } from './followups.js';
+import { inboxTick } from './inbox.js';
 import { prepareLinks } from './links.js';
 import { collectStats } from './metrics.js';
 import { emitEvent } from './webhooks.js';
@@ -407,6 +408,7 @@ export function tick(source = 'interval', now = () => new Date()): Promise<TickR
     await step('channels', () => sweepChannels(now()));
     await step('feeds', () => checkFeeds(now()));
     await step('stats', () => collectStats(now()));
+    await step('inbox', () => inboxTick(now()));
     await step('email', () => emailAlerts());
     return { published, source };
   })().finally(() => (running = null));

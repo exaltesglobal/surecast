@@ -4,9 +4,22 @@ import { config } from '../config.js';
 import { one, run } from '../db.js';
 import { blobOf, http } from './http.js';
 import { mastodonLength } from './text.js';
-import { PublishError, type Adapter, type PostMetrics } from './types.js';
+import { PublishError, type Adapter, type PostMetrics, type RemoteComment } from './types.js';
 
 type Creds = { instance: string; accessToken: string };
+
+/** Mastodon sends HTML; the inbox shows plain text. */
+const htmlToText = (html: string) =>
+  html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .trim();
 
 function normaliseInstance(v: string) {
   const raw = v.trim().replace(/^@?[^@\s]+@/, '');
@@ -127,5 +140,30 @@ export const mastodon: Adapter = {
     const c = ch.credentials as Creds;
     const { data } = await http<{ followers_count?: number }>('Mastodon', `${c.instance}/api/v1/accounts/verify_credentials`, { headers: { Authorization: `Bearer ${c.accessToken}` } });
     return data.followers_count ?? null;
+  },
+  async comments(ch, ids) {
+    const c = ch.credentials as Creds;
+    const out: Record<string, RemoteComment[]> = {};
+    type S = { id: string; in_reply_to_id: string; url: string; created_at: string; content: string; account: { id: string; acct: string; display_name: string; avatar: string } };
+    for (const id of ids) {
+      try {
+        const { data } = await http<{ descendants: S[] }>('Mastodon', `${c.instance}/api/v1/statuses/${encodeURIComponent(id)}/context`, { headers: { Authorization: `Bearer ${c.accessToken}` } });
+        out[id] = data.descendants
+          .filter((s) => s.account.id !== ch.externalId)
+          .map((s) => ({
+            id: s.id,
+            parentId: s.in_reply_to_id,
+            authorName: s.account.display_name || s.account.acct,
+            authorHandle: `@${s.account.acct}`,
+            authorAvatar: s.account.avatar ?? null,
+            text: htmlToText(s.content),
+            createdAt: new Date(s.created_at),
+            url: s.url,
+          }));
+      } catch (e) {
+        if (!(e instanceof PublishError) || e.httpStatus !== 404) throw e;
+      }
+    }
+    return out;
   },
 };

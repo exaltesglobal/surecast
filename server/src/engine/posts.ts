@@ -310,6 +310,7 @@ export async function postsJson(posts: Row[], opts: { attempts?: boolean; commen
         preflightMessage: t.preflight_message,
         publishedAt: t.published_at,
         remoteUrl: t.remote_url,
+        metrics: t.metrics_at || t.clicks ? { likes: t.likes, comments: t.comments, shares: t.shares, views: t.views, clicks: t.clicks ?? 0, at: t.metrics_at } : null,
         followUps: t.followups_total ? { total: t.followups_total, done: t.followups_done, error: t.followups_error, pending: !!t.followups_next_at } : null,
         error: t.error_code ? { code: t.error_code, message: t.error_message, hint: t.error_hint } : null,
         ...(opts.attempts

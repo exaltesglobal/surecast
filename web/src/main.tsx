@@ -15,6 +15,7 @@ import { Composer } from './pages/Composer';
 import { ConnectPick } from './pages/ConnectPick';
 import { Dashboard } from './pages/Dashboard';
 import { ImportPage } from './pages/Import';
+import { InboxPage } from './pages/Inbox';
 import { Login } from './pages/Login';
 import { Portal } from './pages/Portal';
 import { PostDetail } from './pages/PostDetail';
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
       { path: '/', element: <Dashboard /> },
       { path: '/calendar', element: <CalendarPage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
+      { path: '/inbox', element: <InboxPage /> },
       { path: '/posts', element: <PostsPage /> },
       { path: '/posts/new', element: <Composer /> },
       { path: '/posts/import', element: <ImportPage /> },

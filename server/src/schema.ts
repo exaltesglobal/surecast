@@ -324,4 +324,36 @@ export const MIGRATIONS: string[][] = [
       UNIQUE KEY uq_bio_slug (slug)
     ) ${T}`,
   ],
+  [
+    // The unified inbox: comments and replies from other people under published posts.
+    `ALTER TABLE post_targets ADD COLUMN inbox_checked_at DATETIME(3) NULL`,
+    `CREATE TABLE inbox_items (
+      id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NOT NULL,
+      channel_id VARCHAR(24) NOT NULL,
+      target_id VARCHAR(24) NOT NULL,
+      post_id VARCHAR(24) NOT NULL,
+      platform VARCHAR(16) NOT NULL,
+      remote_id VARCHAR(190) NOT NULL,
+      parent_remote_id VARCHAR(190) NOT NULL,
+      root_remote_id VARCHAR(190) NOT NULL,
+      author_name VARCHAR(190) NOT NULL,
+      author_handle VARCHAR(190) NOT NULL DEFAULT '',
+      author_avatar VARCHAR(500) NULL,
+      body TEXT NOT NULL,
+      url VARCHAR(500) NULL,
+      received_at DATETIME(3) NOT NULL,
+      status VARCHAR(12) NOT NULL DEFAULT 'open',
+      reply_text TEXT NULL,
+      reply_remote_id VARCHAR(190) NULL,
+      replied_at DATETIME(3) NULL,
+      replied_by VARCHAR(24) NULL,
+      reply_error VARCHAR(1000) NULL,
+      created_at DATETIME(3) NOT NULL,
+      UNIQUE KEY uq_inbox_remote (channel_id, remote_id),
+      KEY idx_inbox_ws (workspace_id, status, received_at),
+      KEY idx_inbox_client (client_id, status)
+    ) ${T}`,
+  ],
 ];

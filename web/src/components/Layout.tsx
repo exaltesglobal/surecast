@@ -1,4 +1,4 @@
-import { BarChart3, Bell, CalendarDays, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Sun, Users } from 'lucide-react';
+import { BarChart3, Bell, CalendarDays, Inbox, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Sun, Users } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
@@ -6,7 +6,7 @@ import { api, workspaceId } from '../lib/api';
 import type { Client, Me } from '../lib/types';
 import { Loading } from './ui';
 
-type AppCtx = { me: Me; clients: Client[]; reloadClients: () => Promise<void>; alertCount: number; refreshAlerts: () => void; tz: string };
+type AppCtx = { me: Me; clients: Client[]; reloadClients: () => Promise<void>; alertCount: number; inboxCount: number; refreshAlerts: () => void; tz: string };
 const Ctx = createContext<AppCtx | null>(null);
 export const useApp = () => useContext(Ctx)!;
 
@@ -35,14 +35,19 @@ export function Shell() {
   const [me, setMe] = useState<Me | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [alertCount, setAlertCount] = useState(0);
+  const [inboxCount, setInboxCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useTheme();
 
   const reloadClients = async () => setClients((await api<{ clients: Client[] }>('/clients')).clients);
-  const refreshAlerts = () =>
+  const refreshAlerts = () => {
     api<{ alerts: unknown[] }>('/alerts')
       .then((r) => setAlertCount(r.alerts.length))
       .catch(() => undefined);
+    api<{ open: number }>('/inbox?limit=1')
+      .then((r) => setInboxCount(r.open))
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     api<Me>('/me')
@@ -64,7 +69,7 @@ export function Shell() {
   const tz = ws?.timezone ?? 'UTC';
 
   return (
-    <Ctx.Provider value={{ me, clients, reloadClients, alertCount, refreshAlerts, tz }}>
+    <Ctx.Provider value={{ me, clients, reloadClients, alertCount, inboxCount, refreshAlerts, tz }}>
       <div className="mobile-bar">
         <button onClick={() => setOpen(!open)} aria-label="Menu">
           <Menu />
@@ -94,6 +99,9 @@ export function Shell() {
             </NavItem>
             <NavItem to="/posts" icon={<ListChecks size={18} />}>
               Posts
+            </NavItem>
+            <NavItem to="/inbox" icon={<Inbox size={18} />} badge={inboxCount}>
+              Inbox
             </NavItem>
             <NavItem to="/analytics" icon={<BarChart3 size={18} />}>
               Analytics
