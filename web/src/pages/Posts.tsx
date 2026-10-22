@@ -1,3 +1,4 @@
+import { FileUp } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -31,6 +32,9 @@ export function PostsPage() {
           <p>Every post and where it stands on each channel.</p>
         </div>
         <div className="row">
+          <Link to="/posts/import" className="btn">
+            <FileUp size={15} /> Import CSV
+          </Link>
           <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
             <option value="">All clients</option>
             {clients.map((c) => (

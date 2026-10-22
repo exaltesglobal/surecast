@@ -98,4 +98,13 @@ export const mastodon: Adapter = {
     });
     return { remoteId: data.id, url: data.url };
   },
+  followUps: 'thread',
+  async reply(ch, target, text, idempotencyKey) {
+    const c = ch.credentials as Creds;
+    const { data } = await http<{ id: string; url: string }>('Mastodon', `${c.instance}/api/v1/statuses`, {
+      headers: { Authorization: `Bearer ${c.accessToken}`, 'Idempotency-Key': idempotencyKey },
+      json: { status: text, in_reply_to_id: target.parentId, visibility: 'public' },
+    });
+    return { remoteId: data.id, url: data.url };
+  },
 };

@@ -141,4 +141,26 @@ export const bluesky: Adapter = {
     const rkey = data.uri.split('/').pop();
     return { remoteId: data.uri, url: `https://bsky.app/profile/${ch.handle.replace(/^@/, '')}/post/${rkey}` };
   },
+  followUps: 'thread',
+  async reply(ch, target, text) {
+    const c = await session(ch);
+    const auth = { Authorization: `Bearer ${c.accessJwt}` };
+    // A reply needs a strong reference (uri + cid) to both the thread root and its parent.
+    const ref = async (uri: string) => {
+      const [, , repo, collection, rkey] = uri.split('/');
+      const { data } = await http<{ uri: string; cid: string }>('Bluesky', `${c.service}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(repo)}&collection=${collection}&rkey=${rkey}`, { headers: auth });
+      return { uri: data.uri, cid: data.cid };
+    };
+    const record: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text,
+      createdAt: new Date().toISOString(),
+      langs: ['en'],
+      reply: { root: await ref(target.rootId), parent: await ref(target.parentId) },
+    };
+    const f = await facets(text, c.service);
+    if (f.length) record.facets = f;
+    const { data } = await http<{ uri: string }>('Bluesky', `${c.service}/xrpc/com.atproto.repo.createRecord`, { headers: auth, json: { repo: c.did, collection: 'app.bsky.feed.post', record } });
+    return { remoteId: data.uri, url: `https://bsky.app/profile/${ch.handle.replace(/^@/, '')}/post/${data.uri.split('/').pop()}` };
+  },
 };

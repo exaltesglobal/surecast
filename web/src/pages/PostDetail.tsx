@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Pencil, RotateCcw, Trash2, XCircle } from 'lucide-react';
+import { Copy, ExternalLink, ListPlus, MessageSquare, Pencil, Repeat, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -65,6 +65,8 @@ export function PostDetail() {
             )}
             {p.scheduledAt ? `${new Date(p.scheduledAt).getTime() < Date.now() ? 'Scheduled for' : 'Goes out'} ${fmt(p.scheduledAt, tz)}` : 'No time set'}
             {p.source === 'api' && ' · created through the API'}
+            {p.source === 'csv' && ' · imported from a spreadsheet'}
+            {p.source === 'rss' && ' · from a feed'}
           </p>
         </div>
         <div className="row">
@@ -128,6 +130,26 @@ export function PostDetail() {
                     )}
                   </div>
                 )}
+                {t.followUps && (t.followUps.done < t.followUps.total || t.followUps.error) && (
+                  <div className={`banner ${t.followUps.pending ? 'info' : 'warning'}`}>
+                    <div className="body">
+                      <strong>
+                        {t.followUps.done} of {t.followUps.total} follow-ups posted
+                      </strong>
+                      {t.followUps.error && <p>{t.followUps.error}</p>}
+                      {t.followUps.pending ? (
+                        <p className="tiny">Surecast will try again shortly.</p>
+                      ) : (
+                        <button className="btn sm" disabled={!!busy} onClick={() => act(`f${t.id}`, () => api(`/posts/${p.id}/retry-followups`, { method: 'POST' }), 'Trying the rest again')}>
+                          <RotateCcw size={14} /> Try the rest again
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {t.followUps && t.followUps.done === t.followUps.total && !t.followUps.error && (
+                  <span className="tiny muted">Thread and first comment posted ({t.followUps.total}).</span>
+                )}
                 {t.error && t.status !== 'published' && (
                   <div className={`banner ${t.status === 'retrying' ? 'warning' : 'error'}`}>
                     <div className="body">
@@ -182,6 +204,39 @@ export function PostDetail() {
           <section className="card pad stack">
             <h3>Content</h3>
             <p style={{ whiteSpace: 'pre-wrap' }}>{p.body || <em className="muted">No text</em>}</p>
+            {!!p.thread.length && (
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="tiny muted row" style={{ gap: 4 }}>
+                  <ListPlus size={13} /> Thread
+                </span>
+                {p.thread.map((part, i) => (
+                  <p key={i} className="extra" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                    <strong className="tiny">{i + 2}.</strong> {part}
+                  </p>
+                ))}
+              </div>
+            )}
+            {p.firstComment && (
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="tiny muted row" style={{ gap: 4 }}>
+                  <MessageSquare size={13} /> First comment
+                </span>
+                <p className="extra" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {p.firstComment}
+                </p>
+              </div>
+            )}
+            {(p.recycle.days > 0 && p.recycle.times > 0) || p.recycledFrom ? (
+              <span className="small muted row" style={{ gap: 6 }}>
+                <Repeat size={14} />
+                {p.recycle.days > 0 && p.recycle.times > 0 ? `Repeats every ${p.recycle.days} days, ${p.recycle.times} more time${p.recycle.times === 1 ? '' : 's'}.` : ''}
+                {p.recycledFrom && (
+                  <Link to={`/posts/${p.recycledFrom}`} className="small">
+                    A repeat of an earlier post
+                  </Link>
+                )}
+              </span>
+            ) : null}
             {!!p.media.length && (
               <div className="thumbs">
                 {p.media.map((m) => (

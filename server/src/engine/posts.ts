@@ -7,7 +7,9 @@ import { adapter } from '../platforms/index.js';
 import { newId } from '../util.js';
 import { raiseAlert, resolveAlerts } from './alerts.js';
 import { contentIssues, mediaMeta, mediaUrl } from './content.js';
+import { followUpsFor, threadParts } from './followups.js';
 import { rollupPost } from './publisher.js';
+import { nextQueueSlot } from './queue.js';
 
 export type PostInput = {
   clientId?: unknown;
@@ -17,9 +19,12 @@ export type PostInput = {
   overrides?: unknown;
   scheduledAt?: unknown;
   action?: unknown;
+  thread?: unknown;
+  firstComment?: unknown;
+  recycle?: unknown;
 };
 
-type ClientRow = Row & { id: string; name: string; approval_required: number; contact_email: string | null; share_token: string; timezone: string };
+type ClientRow = Row & { id: string; name: string; approval_required: number; contact_email: string | null; share_token: string; timezone: string; queue_slots: string | null };
 
 const strArray = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
@@ -37,15 +42,23 @@ export async function validateDraft(workspaceId: string, input: PostInput) {
   const body = typeof input.body === 'string' ? input.body : '';
   const media = await mediaMeta(strArray(input.mediaIds));
   const channels = channelIds.length ? await all<{ id: string; platform: string; name: string }>('SELECT id, platform, name FROM channels WHERE id IN (?) AND workspace_id = ?', [channelIds, workspaceId]) : [];
+  const extras = { thread: threadParts(input.thread), first_comment: typeof input.firstComment === 'string' ? input.firstComment : null };
   return channels.map((ch) => {
     const a = adapter(ch.platform);
     const text = typeof overrides[ch.id] === 'string' ? overrides[ch.id] : body;
-    return { channelId: ch.id, platform: ch.platform, count: a.count(text), max: ch.platform === 'telegram' && media.length ? 1024 : a.limits.maxChars, issues: contentIssues(a, text, media) };
+    const issues = contentIssues(a, text, media);
+    // Thread parts and the first comment have to fit too.
+    for (const [i, f] of followUpsFor(a, extras).entries()) {
+      const n = a.count(f.text);
+      if (n > a.limits.maxChars) issues.push(`${f.kind === 'comment' ? 'The first comment' : `Thread part ${i + 2}`} is ${n} characters; ${a.label} allows ${a.limits.maxChars}.`);
+    }
+    return { channelId: ch.id, platform: ch.platform, count: a.count(text), max: ch.platform === 'telegram' && media.length ? 1024 : a.limits.maxChars, issues };
   });
 }
 
 export async function savePost(workspaceId: string, user: AuthUser | null, input: PostInput, postId?: string, source = 'app') {
-  const action = input.action === 'now' || input.action === 'schedule' ? input.action : 'draft';
+  const asked = input.action === 'now' || input.action === 'schedule' || input.action === 'queue' ? input.action : 'draft';
+  const action = asked === 'queue' ? 'schedule' : asked;
   const existing = postId ? await one<Row>('SELECT * FROM posts WHERE id = ? AND workspace_id = ?', [postId, workspaceId]) : null;
   if (postId && !existing) throw new HttpError(404, 'Post not found.');
   const client = await getClient(workspaceId, existing?.client_id ?? input.clientId);
@@ -66,6 +79,7 @@ export async function savePost(workspaceId: string, user: AuthUser | null, input
   const now = new Date();
   let scheduledAt: Date | null = null;
   if (action === 'now') scheduledAt = now;
+  else if (asked === 'queue') scheduledAt = await nextQueueSlot(client, now);
   else if (typeof input.scheduledAt === 'string' && input.scheduledAt) {
     scheduledAt = new Date(input.scheduledAt);
     if (Number.isNaN(scheduledAt.getTime())) throw new HttpError(422, 'That date is not valid.');
@@ -75,13 +89,25 @@ export async function savePost(workspaceId: string, user: AuthUser | null, input
     if (scheduledAt.getTime() < now.getTime() - 60_000) throw new HttpError(422, 'That time has already passed. Pick a time in the future or post now.');
   }
 
+  const thread = threadParts(input.thread);
+  const firstComment = typeof input.firstComment === 'string' && input.firstComment.trim() ? input.firstComment.slice(0, 10_000) : null;
+  const recycleIn = (input.recycle && typeof input.recycle === 'object' ? input.recycle : {}) as { days?: unknown; times?: unknown };
+  const recycleDays = Math.min(Math.max(Math.round(Number(recycleIn.days) || 0), 0), 365);
+  const recycleTimes = recycleDays ? Math.min(Math.max(Math.round(Number(recycleIn.times) || 0), 0), 52) : 0;
+
   if (action !== 'draft') {
-    const report = await validateDraft(workspaceId, { body, mediaIds, channelIds, overrides });
+    const report = await validateDraft(workspaceId, { body, mediaIds, channelIds, overrides, thread, firstComment });
     const problems = report.filter((r) => r.issues.length);
     if (problems.length) throw Object.assign(new HttpError(422, 'Some channels cannot take this post as it is.'), { details: problems });
   }
 
-  const contentChanged = !existing || existing.body !== body || JSON.stringify(json(existing.media_ids, [])) !== JSON.stringify(mediaIds) || Object.keys(overrides).length > 0;
+  const contentChanged =
+    !existing ||
+    existing.body !== body ||
+    JSON.stringify(json(existing.media_ids, [])) !== JSON.stringify(mediaIds) ||
+    Object.keys(overrides).length > 0 ||
+    JSON.stringify(threadParts(existing.thread)) !== JSON.stringify(thread) ||
+    (existing.first_comment ?? null) !== firstComment;
   let approval = existing?.approval_status ?? 'not_needed';
   if (!client.approval_required) approval = 'not_needed';
   else if (action !== 'draft' && (approval !== 'approved' || contentChanged)) approval = 'pending';
@@ -89,9 +115,23 @@ export async function savePost(workspaceId: string, user: AuthUser | null, input
 
   const id = existing?.id ?? newId('pst');
   if (existing) {
-    await run('UPDATE posts SET body = ?, media_ids = ?, scheduled_at = ?, approval_status = ?, updated_at = ? WHERE id = ?', [body, JSON.stringify(mediaIds), scheduledAt, approval, now, id]);
+    await run('UPDATE posts SET body = ?, media_ids = ?, scheduled_at = ?, approval_status = ?, thread = ?, first_comment = ?, recycle_days = ?, recycle_left = ?, updated_at = ? WHERE id = ?', [
+      body,
+      JSON.stringify(mediaIds),
+      scheduledAt,
+      approval,
+      thread.length ? JSON.stringify(thread) : null,
+      firstComment,
+      recycleDays || null,
+      recycleTimes,
+      now,
+      id,
+    ]);
   } else {
-    await run('INSERT INTO posts (id, workspace_id, client_id, author_id, status, body, media_ids, scheduled_at, approval_status, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+    await run(
+      `INSERT INTO posts (id, workspace_id, client_id, author_id, status, body, media_ids, scheduled_at, approval_status, source, thread, first_comment, recycle_days, recycle_left, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
       id,
       workspaceId,
       client.id,
@@ -102,9 +142,14 @@ export async function savePost(workspaceId: string, user: AuthUser | null, input
       scheduledAt,
       approval,
       source,
+      thread.length ? JSON.stringify(thread) : null,
+      firstComment,
+      recycleDays || null,
+      recycleTimes,
       now,
       now,
-    ]);
+    ],
+    );
   }
 
   // Targets that already went out (or are going out right now) are left exactly as they are.
@@ -236,6 +281,10 @@ export async function postsJson(posts: Row[], opts: { attempts?: boolean; commen
     body: p.body,
     source: p.source,
     scheduledAt: p.scheduled_at,
+    thread: threadParts(p.thread),
+    firstComment: p.first_comment ?? '',
+    recycle: { days: p.recycle_days ?? 0, times: p.recycle_left ?? 0 },
+    recycledFrom: p.recycled_from ?? null,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
     media: json<string[]>(p.media_ids, [])
@@ -261,6 +310,7 @@ export async function postsJson(posts: Row[], opts: { attempts?: boolean; commen
         preflightMessage: t.preflight_message,
         publishedAt: t.published_at,
         remoteUrl: t.remote_url,
+        followUps: t.followups_total ? { total: t.followups_total, done: t.followups_done, error: t.followups_error, pending: !!t.followups_next_at } : null,
         error: t.error_code ? { code: t.error_code, message: t.error_message, hint: t.error_hint } : null,
         ...(opts.attempts
           ? {

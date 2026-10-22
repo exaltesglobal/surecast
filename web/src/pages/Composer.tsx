@@ -1,14 +1,15 @@
-import { AlertCircle, ImagePlus, Send, X } from 'lucide-react';
+import { AlertCircle, CalendarPlus, ImagePlus, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import { AltTextButton, Assistant, type AiStatus } from '../components/Assistant';
+import { Extras, SnippetPicker } from '../components/ComposerExtras';
 import { useApp } from '../components/Layout';
 import { Avatar, Empty, ErrorBanner, Loading, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { utcToZoned, zonedToUtc } from '../lib/time';
-import type { Channel, Media, Post } from '../lib/types';
+import type { Channel, Media, Post, Snippet } from '../lib/types';
 
 type Check = { channelId: string; platform: string; count: number; max: number; issues: string[] };
 
@@ -36,6 +37,10 @@ export function Composer() {
   const [uploading, setUploading] = useState(0);
   const [drag, setDrag] = useState(false);
   const [post, setPost] = useState<Post | null>(null);
+  const [thread, setThread] = useState<string[]>([]);
+  const [firstComment, setFirstComment] = useState('');
+  const [recycle, setRecycle] = useState({ days: 0, times: 0 });
+  const snippets = useLoad(() => api<{ snippets: Snippet[] }>('/snippets'));
   const fileRef = useRef<HTMLInputElement>(null);
   const ai = useLoad(() => api<AiStatus>('/ai/status'));
 
@@ -50,6 +55,9 @@ export function Composer() {
       setClientId(post.clientId);
       setBody(post.body);
       setMedia(post.media);
+      setThread(post.thread);
+      setFirstComment(post.firstComment);
+      setRecycle(post.recycle);
       const editable = post.targets.filter((t) => t.status !== 'cancelled');
       setSelected(editable.map((t) => t.channelId));
       setOverrides(Object.fromEntries(editable.filter((t) => t.body != null).map((t) => [t.channelId, t.body!])));
@@ -76,12 +84,12 @@ export function Composer() {
   useEffect(() => {
     if (!selected.length) return setChecks([]);
     const t = window.setTimeout(() => {
-      api<{ channels: Check[] }>('/posts/validate', { body: { body, mediaIds: media.map((m) => m.id), channelIds: selected, overrides } })
+      api<{ channels: Check[] }>('/posts/validate', { body: { body, mediaIds: media.map((m) => m.id), channelIds: selected, overrides, thread, firstComment } })
         .then((r) => setChecks(r.channels))
         .catch(() => undefined);
     }, 300);
     return () => window.clearTimeout(t);
-  }, [body, media, selected, overrides]);
+  }, [body, media, selected, overrides, thread, firstComment]);
 
   const selectedChannels = useMemo(() => channels.filter((c) => selected.includes(c.id)), [channels, selected]);
   const lockedChannelIds = new Set(post?.targets.filter((t) => t.status === 'published' || t.status === 'publishing').map((t) => t.channelId) ?? []);
@@ -104,14 +112,35 @@ export function Composer() {
     }
   };
 
-  const save = async (action: 'draft' | 'schedule' | 'now') => {
+  const save = async (action: 'draft' | 'schedule' | 'now' | 'queue') => {
     setBusy(action);
     setError(null);
     try {
       const scheduledAt = date && time ? zonedToUtc(date, time, tz).toISOString() : null;
-      const payload = { clientId, body, mediaIds: media.map((m) => m.id), channelIds: selected.filter((c) => !lockedChannelIds.has(c)), overrides, scheduledAt, action };
+      const payload = {
+        clientId,
+        body,
+        mediaIds: media.map((m) => m.id),
+        channelIds: selected.filter((c) => !lockedChannelIds.has(c)),
+        overrides,
+        scheduledAt,
+        action,
+        thread: thread.filter((t) => t.trim()),
+        firstComment,
+        recycle: recycle.days > 0 && recycle.times > 0 ? recycle : { days: 0, times: 0 },
+      };
       const r = id ? await api<{ post: Post }>(`/posts/${id}`, { method: 'PATCH', body: payload }) : await api<{ post: Post }>('/posts', { body: payload });
-      toast(action === 'draft' ? 'Draft saved' : action === 'now' ? 'Posting now' : r.post.status === 'awaiting_approval' ? 'Sent to the client for approval' : 'Scheduled');
+      toast(
+        action === 'draft'
+          ? 'Draft saved'
+          : action === 'now'
+            ? 'Posting now'
+            : r.post.status === 'awaiting_approval'
+              ? 'Sent to the client for approval'
+              : action === 'queue'
+                ? `Added to the queue for ${new Date(r.post.scheduledAt!).toLocaleString(undefined, { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`
+                : 'Scheduled',
+      );
       nav(`/posts/${r.post.id}`);
     } catch (e) {
       if (e instanceof ApiError && e.details) setChecks((prev) => prev.map((c) => ({ ...c, issues: e.details!.find((d) => d.channelId === c.channelId)?.issues ?? c.issues })));
@@ -210,7 +239,11 @@ export function Composer() {
             <div className="card-body stack">
               {tab !== 'all' && (
                 <div className="row between small">
-                  <span className="muted">{overrides[tab] != null ? `Custom text for ${platformInfo(selectedChannels.find((c) => c.id === tab)?.platform ?? '').label}.` : 'Uses the main text. Edit below to customise it for this channel.'}</span>
+                  <span className="muted">
+                    {overrides[tab] != null
+                      ? `Custom text for ${platformInfo(selectedChannels.find((c) => c.id === tab)?.platform ?? '').label}.`
+                      : 'Uses the main text. Edit below to customise it for this channel.'}
+                  </span>
                   {overrides[tab] != null && (
                     <button
                       className="btn ghost sm"
@@ -232,14 +265,38 @@ export function Composer() {
                 onChange={(e) => (tab === 'all' ? setBody(e.target.value) : setOverrides({ ...overrides, [tab]: e.target.value }))}
                 aria-label="Post text"
               />
-              <div className="row" style={{ gap: 14 }}>
-                {(tab === 'all' ? checks : tabCheck ? [tabCheck] : []).map((c) => (
-                  <span key={c.channelId} className={`counter row ${c.count > c.max ? 'over' : ''}`} style={{ gap: 4 }} title={channels.find((x) => x.id === c.channelId)?.name}>
-                    <PlatformBadge platform={c.platform} size={14} />
-                    {c.max - c.count}
-                  </span>
-                ))}
+              <div className="row between">
+                <div className="row" style={{ gap: 14 }}>
+                  {(tab === 'all' ? checks : tabCheck ? [tabCheck] : []).map((c) => (
+                    <span key={c.channelId} className={`counter row ${c.count > c.max ? 'over' : ''}`} style={{ gap: 4 }} title={channels.find((x) => x.id === c.channelId)?.name}>
+                      <PlatformBadge platform={c.platform} size={14} />
+                      {c.max - c.count}
+                    </span>
+                  ))}
+                </div>
+                <SnippetPicker
+                  snippets={snippets.data?.snippets ?? []}
+                  clientId={clientId}
+                  onPick={(t) => {
+                    const add = (s: string) => `${s.trimEnd()}${s.trim() ? '\n\n' : ''}${t}`;
+                    if (tab === 'all') setBody(add(body));
+                    else setOverrides({ ...overrides, [tab]: add(textFor(tab)) });
+                  }}
+                />
               </div>
+              {tab === 'all' && (
+                <Extras
+                  platforms={[...new Set(selectedChannels.map((c) => c.platform))]}
+                  body={body}
+                  setBody={setBody}
+                  thread={thread}
+                  setThread={setThread}
+                  firstComment={firstComment}
+                  setFirstComment={setFirstComment}
+                  recycle={recycle}
+                  setRecycle={setRecycle}
+                />
+              )}
 
               <div className="stack" style={{ gap: 8 }}>
                 <div className="thumbs">
@@ -337,6 +394,11 @@ export function Composer() {
               {!client?.approvalRequired && (
                 <button className="btn accent" disabled={!!busy || !clientId || !selected.length || hasIssues} onClick={() => save('now')}>
                   {busy === 'now' ? <Spinner /> : <Send size={15} />} Post now
+                </button>
+              )}
+              {!!client?.queueSlots?.length && (
+                <button className="btn" disabled={!!busy || !selected.length || hasIssues} onClick={() => save('queue')} title="Next free posting time for this client">
+                  {busy === 'queue' ? <Spinner /> : <CalendarPlus size={15} />} Add to queue
                 </button>
               )}
               <button className="btn" disabled={!!busy || !clientId} onClick={() => save('draft')}>

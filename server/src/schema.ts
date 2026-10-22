@@ -230,4 +230,44 @@ export const MIGRATIONS: string[][] = [
       PRIMARY KEY (workspace_id, day)
     ) ${T}`,
   ],
+  [
+    // Threads, first comments and evergreen recycling.
+    `ALTER TABLE posts ADD COLUMN thread TEXT NULL, ADD COLUMN first_comment TEXT NULL, ADD COLUMN recycle_days INT NULL,
+      ADD COLUMN recycle_left INT NOT NULL DEFAULT 0, ADD COLUMN recycled_from VARCHAR(24) NULL`,
+    `ALTER TABLE post_targets ADD COLUMN followups_total INT NOT NULL DEFAULT 0, ADD COLUMN followups_done INT NOT NULL DEFAULT 0,
+      ADD COLUMN followups_ids TEXT NULL, ADD COLUMN followups_next_at DATETIME(3) NULL, ADD COLUMN followups_attempts INT NOT NULL DEFAULT 0,
+      ADD COLUMN followups_error VARCHAR(1000) NULL, ADD KEY idx_targets_followups (followups_next_at)`,
+    // Weekly posting times for "Add to queue".
+    `ALTER TABLE clients ADD COLUMN queue_slots TEXT NULL`,
+    // Saved hashtag groups and text snippets.
+    `CREATE TABLE snippets (
+      id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NULL,
+      name VARCHAR(120) NOT NULL,
+      body TEXT NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      KEY idx_snippets_ws (workspace_id)
+    ) ${T}`,
+    // RSS and Atom feeds that turn new articles into posts.
+    `CREATE TABLE feeds (
+      id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NOT NULL,
+      url VARCHAR(1000) NOT NULL,
+      title VARCHAR(255) NOT NULL DEFAULT '',
+      channel_ids TEXT NOT NULL,
+      template TEXT NOT NULL,
+      mode VARCHAR(16) NOT NULL,
+      active TINYINT NOT NULL DEFAULT 1,
+      seen MEDIUMTEXT NULL,
+      last_checked_at DATETIME(3) NULL,
+      last_item_at DATETIME(3) NULL,
+      last_error VARCHAR(1000) NULL,
+      failures INT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL,
+      KEY idx_feeds_ws (workspace_id),
+      KEY idx_feeds_check (active, last_checked_at)
+    ) ${T}`,
+  ],
 ];

@@ -12,7 +12,8 @@ type Creds = { pageToken: string; pageId: string; igUserId?: string };
 
 const V = process.env.META_GRAPH_VERSION || 'v23.0';
 const G = `https://graph.facebook.com/${V}`;
-const SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'business_management', 'instagram_basic', 'instagram_content_publish'];
+// Comment permissions cover first comments now and the inbox later.
+const SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement', 'pages_manage_engagement', 'business_management', 'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments'];
 
 /** Graph API errors carry a numeric code that says far more than the HTTP status. */
 async function graph<T>(url: string, opts: Parameters<typeof http>[2] = {}): Promise<T> {
@@ -122,6 +123,12 @@ export const facebook: Adapter = {
     }
     return { remoteId: postId, url: `https://www.facebook.com/${postId}` };
   },
+  followUps: 'comment',
+  async reply(ch, target, text) {
+    const c = ch.credentials as Creds;
+    const r = await graph<{ id: string }>(`${G}/${target.rootId}/comments`, { json: { message: text, access_token: c.pageToken } });
+    return { remoteId: r.id, url: `https://www.facebook.com/${target.rootId}` };
+  },
 };
 
 async function waitForContainer(id: string, token: string) {
@@ -173,5 +180,11 @@ export const instagram: Adapter = {
       /* the post is live; the link is a nice-to-have */
     }
     return { remoteId: published.id, url };
+  },
+  followUps: 'comment',
+  async reply(ch, target, text) {
+    const c = ch.credentials as Creds;
+    const r = await graph<{ id: string }>(`${G}/${target.rootId}/comments`, { json: { message: text, access_token: c.pageToken } });
+    return { remoteId: r.id, url: null };
   },
 };

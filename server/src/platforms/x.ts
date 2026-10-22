@@ -109,4 +109,13 @@ export const x: Adapter = {
       throw e;
     }
   },
+  followUps: 'thread',
+  async reply(ch, target, text) {
+    const t = await token(ch);
+    const { data } = await http<{ data: { id: string } }>('X', 'https://api.x.com/2/tweets', {
+      headers: { Authorization: `Bearer ${t}` },
+      json: { text, reply: { in_reply_to_tweet_id: target.parentId } },
+    });
+    return { remoteId: data.data.id, url: `https://x.com/${(ch.credentials as Creds).username}/status/${data.data.id}` };
+  },
 };

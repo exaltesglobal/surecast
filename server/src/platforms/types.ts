@@ -89,4 +89,13 @@ export interface Adapter {
   /** Confirms the connection still works; may refresh tokens. Throws PublishError. */
   check(ch: ChannelCtx): Promise<{ tokenExpiresAt?: Date | null; name?: string; avatarUrl?: string | null }>;
   publish(ch: ChannelCtx, input: PublishInput): Promise<PublishResult>;
+  /**
+   * Follow-ups after a post goes out. "thread" networks chain replies into a thread (and the
+   * first comment is a reply); "comment" networks only take comments on the post itself.
+   */
+  followUps?: 'thread' | 'comment';
+  /** Posts a text reply (or comment) under parent; rootId is the original post. */
+  reply?(ch: ChannelCtx, target: ReplyTarget, text: string, idempotencyKey: string): Promise<PublishResult>;
 }
+
+export type ReplyTarget = { parentId: string; rootId: string };

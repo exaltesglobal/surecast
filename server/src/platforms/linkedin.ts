@@ -80,4 +80,13 @@ export const linkedin: Adapter = {
     const urn = res.headers.get('x-restli-id') ?? '';
     return { remoteId: urn, url: urn ? `https://www.linkedin.com/feed/update/${urn}/` : null };
   },
+  followUps: 'comment',
+  async reply(ch, target, text) {
+    const c = ch.credentials as Creds;
+    const { data } = await http<{ id?: string; commentUrn?: string }>('LinkedIn', `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(target.rootId)}/comments`, {
+      headers: rest(c.accessToken),
+      json: { actor: c.personUrn, object: target.rootId, message: { text } },
+    });
+    return { remoteId: data.commentUrn ?? data.id ?? '', url: `https://www.linkedin.com/feed/update/${target.rootId}/` };
+  },
 };

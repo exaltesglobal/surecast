@@ -3,21 +3,11 @@ import { Hono } from 'hono';
 
 import { HttpError, requireUser, type Env } from '../auth.js';
 import { all, json, one, run } from '../db.js';
-import { mediaUrl } from '../engine/content.js';
+import { MAX_UPLOAD, mediaUrl, storeMedia } from '../engine/content.js';
+import { retryFollowUps } from '../engine/followups.js';
 import { cancelPost, postsJson, retryPost, savePost, validateDraft } from '../engine/posts.js';
-import { newId, token } from '../util.js';
+import { newId } from '../util.js';
 import { body } from './workspace.js';
-
-const MAX_UPLOAD = 10_000_000;
-
-/** Detects the real image type from its first bytes rather than trusting the upload. */
-export function sniffImage(buf: Buffer): string | null {
-  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
-  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
-  if (buf.subarray(0, 4).toString('ascii') === 'GIF8') return 'image/gif';
-  if (buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
-  return null;
-}
 
 export const postRoutes = new Hono<Env>()
   .use(requireUser)
@@ -68,6 +58,10 @@ export const postRoutes = new Hono<Env>()
     await retryPost(c.get('workspaceId'), c.req.param('id'), (await body(c)).targetId);
     return c.json({ ok: true });
   })
+  .post('/posts/:id/retry-followups', async (c) => {
+    if (!(await retryFollowUps(c.get('workspaceId'), c.req.param('id')))) throw new HttpError(409, 'Nothing to retry: every thread part and comment has gone out.');
+    return c.json({ ok: true });
+  })
   .post('/posts/:id/cancel', async (c) => {
     await cancelPost(c.get('workspaceId'), c.req.param('id'));
     return c.json({ ok: true });
@@ -82,6 +76,8 @@ export const postRoutes = new Hono<Env>()
       mediaIds: json(p.media_ids, []),
       channelIds: targets.map((t) => t.channel_id),
       overrides: Object.fromEntries(targets.filter((t) => t.body_override != null).map((t) => [t.channel_id, t.body_override])),
+      thread: json(p.thread, []),
+      firstComment: p.first_comment,
       action: 'draft',
     });
     return c.json({ id }, 201);
@@ -116,23 +112,9 @@ export const postRoutes = new Hono<Env>()
     if (!(file instanceof File)) throw new HttpError(422, 'Choose an image to upload.');
     if (file.size > MAX_UPLOAD) throw new HttpError(413, 'Images can be up to 10 MB.');
     const buf = Buffer.from(await file.arrayBuffer());
-    const mime = sniffImage(buf);
-    if (!mime) throw new HttpError(422, 'Upload a JPEG, PNG, GIF or WebP image.');
-    const id = newId('med');
-    const key = token(18);
-    const filename = (file.name || 'image').replace(/[^\w.\- ]+/g, '').slice(0, 190) || 'image';
-    await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-      id,
-      c.get('workspaceId'),
-      key,
-      filename,
-      mime,
-      buf.length,
-      typeof form.alt === 'string' ? form.alt.slice(0, 2000) : null,
-      buf,
-      new Date(),
-    ]);
-    return c.json({ media: { id, filename, mime, size: buf.length, alt: typeof form.alt === 'string' ? form.alt : '', url: mediaUrl(key) } }, 201);
+    const alt = typeof form.alt === 'string' ? form.alt.slice(0, 2000) : '';
+    const { id, filename, mime, key } = await storeMedia(c.get('workspaceId'), buf, file.name, alt);
+    return c.json({ media: { id, filename, mime, size: buf.length, alt, url: mediaUrl(key) } }, 201);
   })
   .patch('/media/:id', async (c) => {
     const alt = String((await body(c)).alt ?? '').slice(0, 2000);
