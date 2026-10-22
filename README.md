@@ -1,0 +1,104 @@
+# Surecast
+
+**Every post goes out. Or you know why.**
+
+Surecast is a social media scheduler for agencies. It's built around one promise: a scheduled post is published, or you are told immediately, in plain words, why it wasn't and what to do about it.
+
+## What's in it
+
+- **Reliable publishing engine.** Each post is sent to each channel as a separate job, and every attempt is logged. Temporary errors (rate limits, timeouts, platform outages) are retried with backoff. Permanent errors stop at once and explain the fix. A post is never sent twice: jobs are claimed atomically, and if publishing is interrupted on a platform that can't de-duplicate, the post is flagged for a person to check instead of being retried blind.
+- **Pre-flight checks.** 15 minutes before each slot, Surecast checks the connection and the content and warns you if the post would fail.
+- **Watchdog.** A post that misses its slot by more than 2 hours (for example during server downtime) is held for review. It is not published hours late.
+- **Channel health.** Every connection is checked every 6 hours. You get a warning a week before a token expires. When a channel disconnects, its posts wait, and they go out automatically as soon as you reconnect it.
+- **Alerts** on screen and by email, de-duplicated, so one problem sends one email.
+- **Clients.** Each client has its own channels, time zone, colour and approval setting.
+- **Client approvals** through a no-login portal link, with an approve-all button and change requests.
+- **Proof-of-publish reports.** A monthly report for each client that lists every post, when it went out and its live link. It's printable and can be shared as a link.
+- **Calendar, composer and queue.** The composer lets you change the text for each network, shows live character counts against each platform's rules, previews the post, and takes images with alt text. Editing a post keeps its scheduled time.
+- **Team** with unlimited seats and owner, admin and editor roles.
+- **API keys and signed webhooks**, so scripts, Zapier and AI agents can schedule posts.
+- **Dark mode**, and a layout that works on mobile.
+
+### Networks
+
+| Network | Status |
+|---|---|
+| Bluesky | Works now (connects with an app password) |
+| Mastodon | Works now (OAuth on any server) |
+| Telegram channels | Works now (connects with a bot token) |
+| LinkedIn | Built. Switched on when `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` are set |
+| Facebook Pages and Instagram | Built. Switched on when `META_APP_ID` and `META_APP_SECRET` are set; the Meta app must pass App Review |
+| X | Built. Switched on when `X_CLIENT_ID` and `X_CLIENT_SECRET` are set; needs a paid API plan |
+
+The OAuth redirect URLs to register with each developer app are:
+
+- `https://surecast.live/v1/oauth/linkedin/callback`
+- `https://surecast.live/v1/oauth/facebook/callback` (used by both Facebook and Instagram)
+- `https://surecast.live/v1/oauth/x/callback`
+- `https://surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
+
+## Stack
+
+Surecast runs as one Node 22 app. A Hono API (TypeScript) also serves the React web app, which Vite builds into `web/dist`. Data is kept in MySQL or MariaDB, images included, so uploads survive redeploys. Email goes out over SMTP.
+
+```
+server/src/
+  engine/      publishing engine, pre-flight, watchdog, channel health, alerts, webhooks
+  platforms/   one adapter per network, behind a single interface
+  routes/      HTTP API (/v1)
+web/src/       React app
+scripts/       demo data
+```
+
+## Local development
+
+You need Node 22 and MySQL or MariaDB.
+
+```bash
+cp .env.example .env          # fill in DB_* (APP_SECRET can stay empty locally)
+npm install
+npm run dev                   # API on :3000, web app on :5173
+npm test                      # engine and API tests (uses the surecast_test database)
+npx tsx scripts/seed-demo.ts you@example.com   # optional sample data, after signing in once
+```
+
+Without SMTP settings, emails (including sign-in codes) are printed to the console.
+
+## Deploy on Hostinger (surecast.live)
+
+1. **Database:** in hPanel, go to Databases > MySQL and create a database and a user. You don't need to import anything, because the app creates its tables on first start.
+2. **Email:** create a mailbox such as `alerts@surecast.live` in hPanel > Emails.
+3. **Node.js app:** in hPanel > Websites, add surecast.live as a Node.js app connected to this GitHub repository.
+   - Build command: `npm ci && npm run build`
+   - Start command: `npm start`
+   - Node version: 22
+4. **Environment variables:** set everything in `.env.example`.
+   - `NODE_ENV=production`
+   - `PUBLIC_URL=https://surecast.live`
+   - `DB_HOST=127.0.0.1`
+   - `APP_SECRET`: 64 or more random characters. Keep it safe, because changing it disconnects every channel.
+   - `CRON_SECRET`: another random string.
+   - `EMAIL_FROM` and the `SMTP_*` variables (`smtp.hostinger.com`, port 465). In production, the app won't start if any of these are missing.
+5. **Cron job:** in hPanel > Advanced > Cron Jobs, add a job that runs every minute:
+   ```
+   curl -fsS "https://surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null
+   ```
+   The app also runs the scheduler every 20 seconds while it is awake. The cron job wakes it if Hostinger has put it to sleep.
+6. **Check:** `https://surecast.live/v1/health` should return `"ok": true` and show a recent `lastTickAt`.
+
+Never commit `.env` or paste keys into chat. Set them only in Hostinger's environment variables.
+
+## API
+
+Create a key in Settings > API keys, then:
+
+```bash
+curl https://surecast.live/v1/clients -H "Authorization: Bearer sc_live_..."
+
+curl https://surecast.live/v1/posts -H "Authorization: Bearer sc_live_..." -H "Content-Type: application/json" -d '{
+  "clientId": "cli_...", "channelIds": ["chn_..."], "body": "Hello!",
+  "action": "schedule", "scheduledAt": "2026-11-01T09:00:00Z"
+}'
+```
+
+Webhooks receive `post.published` and `post.failed`. Each one is signed with a hex HMAC-SHA256 of the raw body, sent in `X-Surecast-Signature`.
