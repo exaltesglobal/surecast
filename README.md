@@ -35,6 +35,8 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 | Threads | Built. Switched on when `THREADS_APP_ID` and `THREADS_APP_SECRET` are set (a Meta app with the Threads use case) |
 | Pinterest | Built. Switched on when `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` are set; each board is a channel, every Pin needs an image |
 | Google Business Profile | Built. Switched on when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; Google must grant Business Profile API access |
+| YouTube | Built. Switched on by the same `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as Google Business; each YouTube channel is a channel, every post is one video (first line = title) |
+| TikTok | Built. Switched on when `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` are set; every post is one video, private until TikTok audits the app |
 
 The OAuth redirect URLs to register with each developer app are:
 
@@ -44,11 +46,13 @@ The OAuth redirect URLs to register with each developer app are:
 - `https://app.surecast.live/v1/oauth/threads/callback`
 - `https://app.surecast.live/v1/oauth/pinterest/callback`
 - `https://app.surecast.live/v1/oauth/google/callback`
+- `https://app.surecast.live/v1/oauth/youtube/callback` (same Google app)
+- `https://app.surecast.live/v1/oauth/tiktok/callback`
 - `https://app.surecast.live/v1/oauth/mastodon/callback` (registered automatically on each Mastodon server)
 
 ## Stack
 
-Surecast runs as one Node 22 app. A Hono API (TypeScript) also serves the React web app, which Vite builds into `web/dist`. Data is kept in MySQL or MariaDB, images included, so uploads survive redeploys. Email goes out over SMTP.
+Surecast runs as one Node 22 app. A Hono API (TypeScript) also serves the React web app, which Vite builds into `web/dist`. Data is kept in MySQL or MariaDB, images and videos included (videos in 4 MB chunks), so uploads survive redeploys. Email goes out over SMTP.
 
 ```
 server/src/
@@ -89,6 +93,8 @@ Without SMTP settings, emails (including sign-in codes) are printed to the conso
    - `CRON_SECRET`: another random string.
    - `EMAIL_FROM` and the `SMTP_*` variables (`smtp.hostinger.com`, port 465). In production, the app won't start if any of these are missing.
    - `ANTHROPIC_API_KEY` (optional) switches on the writing assistant. Create a key at console.anthropic.com. The assistant uses Claude Opus 5.5; set `AI_MODEL` to use a different model.
+   - `ADMIN_EMAILS`: the Surecast team emails that get the admin panel at `/admin` as superadmins. Add other staff with narrower roles from the panel.
+   - `CHITTHI_URL` (optional) only if Chitthi runs somewhere other than `https://app.chitthi.live`.
 5. **Cron job:** in hPanel > Advanced > Cron Jobs, add a job that runs every minute:
    ```
    curl -fsS "https://app.surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null

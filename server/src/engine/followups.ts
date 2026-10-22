@@ -73,7 +73,7 @@ async function sendFollowUps(t: Row, now: Date) {
           key: `target:${t.id}:followups`,
           kind: 'followup_failed',
           severity: 'warning',
-          title: `${what} for ${client?.name ?? 'a client'} did not go out on ${a.label}`,
+          title: `${what} for ${client?.name ?? 'a brand'} did not go out on ${a.label}`,
           detail: `The main post is live. ${err.message}. ${err.hint} Open the post to try the rest again.`,
           clientId: post.client_id,
           channelId: channel.id,

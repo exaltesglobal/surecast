@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { useApp } from '../components/Layout';
-import { Empty, ErrorBanner, Loading, Pill, PlatformBadge, useLoad } from '../components/ui';
+import { Empty, ErrorBanner, Loading, MediaThumb, Pill, PlatformBadge, useLoad } from '../components/ui';
 import { api } from '../lib/api';
 import { fmt } from '../lib/time';
 import type { Post } from '../lib/types';
@@ -35,8 +35,8 @@ export function PostsPage() {
           <Link to="/posts/import" className="btn">
             <FileUp size={15} /> Import CSV
           </Link>
-          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Client">
-            <option value="">All clients</option>
+          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Brand">
+            <option value="">All brands</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -65,7 +65,7 @@ export function PostsPage() {
             return (
               <Link key={p.id} to={`/posts/${p.id}`} className="list-item" style={{ color: 'inherit', textDecoration: 'none' }}>
                 {p.media[0] ? (
-                  <img src={p.media[0].url} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
+                  <MediaThumb m={p.media[0]} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
                 ) : (
                   <span style={{ width: 52, height: 52, borderRadius: 8, background: 'var(--surface-2)', flex: 'none' }} />
                 )}
@@ -97,7 +97,7 @@ export function PostsPage() {
         </div>
       ) : (
         <div className="card">
-          <Empty title={tab === 'attention' ? 'Nothing needs action' : 'No posts here yet'}>{tab === 'attention' ? 'Failed posts and client change requests will show up here.' : <Link to="/posts/new">Write a post</Link>}</Empty>
+          <Empty title={tab === 'attention' ? 'Nothing needs action' : 'No posts here yet'}>{tab === 'attention' ? 'Failed posts and reviewer change requests will show up here.' : <Link to="/posts/new">Write a post</Link>}</Empty>
         </div>
       )}
     </>

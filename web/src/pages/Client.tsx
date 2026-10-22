@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
 import { BioPage, Feeds, LinkTracking, PostingTimes } from '../components/ClientExtras';
+import { BrandGuard, CampaignFromLink, ClientWhatsApp, EmergencyBrake } from '../components/ClientSafety';
 import { useApp } from '../components/Layout';
 import { Avatar, CopyField, Empty, ErrorBanner, Loading, Modal, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -58,10 +59,12 @@ export function ClientPage() {
             <h1>{client.name}</h1>
           </div>
           <p>
-            {client.timezone.replace(/_/g, ' ')} · {client.approvalRequired ? 'Client approves posts' : 'No approval step'}
+            {client.timezone.replace(/_/g, ' ')} · {client.approvalRequired ? 'Needs approval' : 'No approval step'}
           </p>
         </div>
         <div className="row">
+          <EmergencyBrake client={client} as="button" />
+          <CampaignFromLink client={client} channels={data?.channels ?? []} />
           <Link to={`/clients/${client.id}/report`} className="btn">
             <FileBarChart size={16} /> Proof-of-publish report
           </Link>
@@ -71,6 +74,7 @@ export function ClientPage() {
         </div>
       </div>
 
+      <EmergencyBrake client={client} as="banner" />
       <div className="grid two" style={{ alignItems: 'start' }}>
         <div className="stack">
           <section className="card">
@@ -140,8 +144,8 @@ export function ClientPage() {
 
         <div className="stack">
           <section className="card pad stack">
-            <h3>Share with the client</h3>
-            <p className="small muted">These links need no login. Anyone with them can see this client's posts, so share them only with the client.</p>
+            <h3>Share outside your team</h3>
+            <p className="small muted">These links need no login. Anyone with them can see this brand's posts, so share them only with people you trust.</p>
             <label className="field">
               Approval portal
               <CopyField value={portal} />
@@ -166,6 +170,8 @@ export function ClientPage() {
           <PostingTimes client={client} />
           <LinkTracking client={client} />
           <ClientSettings />
+          <BrandGuard client={client} />
+          <ClientWhatsApp client={client} />
           <BrandVoice />
         </div>
       </div>
@@ -208,10 +214,10 @@ function ClientSettings() {
         </select>
       </label>
       <label className="check">
-        <input type="checkbox" checked={form.approvalRequired} onChange={(e) => setForm({ ...form, approvalRequired: e.target.checked })} /> Client approves posts before they go out
+        <input type="checkbox" checked={form.approvalRequired} onChange={(e) => setForm({ ...form, approvalRequired: e.target.checked })} /> Posts need an approver's sign-off before they go out
       </label>
       <label className="field">
-        Client's email <span className="hint">For approval requests.</span>
+        Approver's email <span className="hint">For approval requests.</span>
         <input className="input" type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />
       </label>
       <ErrorBanner error={error} />
@@ -225,7 +231,7 @@ function ClientSettings() {
             await reloadClients();
           }}
         >
-          {c.archivedAt ? 'Restore client' : 'Archive client'}
+          {c.archivedAt ? 'Restore brand' : 'Archive brand'}
         </button>
       </div>
     </form>

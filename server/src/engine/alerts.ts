@@ -26,6 +26,7 @@ export async function raiseAlert(a: AlertInput) {
      ON DUPLICATE KEY UPDATE
        title = VALUES(title), detail = VALUES(detail), severity = VALUES(severity),
        emailed_at = IF(resolved_at IS NULL, emailed_at, NULL),
+       whatsapp_at = IF(resolved_at IS NULL, whatsapp_at, NULL),
        created_at = IF(resolved_at IS NULL, created_at, VALUES(created_at)),
        resolved_at = NULL`,
     [newId('alr'), a.workspaceId, a.key, a.kind, a.severity, clip(a.title, 300), clip(a.detail ?? null, 1000), a.clientId ?? null, a.channelId ?? null, a.postId ?? null, a.targetId ?? null, new Date()],

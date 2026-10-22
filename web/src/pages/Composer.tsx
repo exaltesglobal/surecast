@@ -5,13 +5,13 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { AltTextButton, Assistant, type AiStatus } from '../components/Assistant';
 import { Extras, SnippetPicker } from '../components/ComposerExtras';
 import { useApp } from '../components/Layout';
-import { Avatar, Empty, ErrorBanner, Loading, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
+import { Avatar, Empty, ErrorBanner, Loading, MediaThumb, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { platformInfo } from '../lib/platforms';
 import { utcToZoned, zonedToUtc } from '../lib/time';
 import type { Channel, Media, Post, Snippet } from '../lib/types';
 
-type Check = { channelId: string; platform: string; count: number; max: number; issues: string[] };
+type Check = { channelId: string; platform: string; count: number; max: number; issues: string[]; warnings?: string[] };
 
 export function Composer() {
   const { id } = useParams();
@@ -25,7 +25,7 @@ export function Composer() {
   const [clientId, setClientId] = useState(params.get('client') ?? (active.length === 1 ? active[0].id : ''));
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(params.get('text') ?? '');
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<string>('all');
   const [media, setMedia] = useState<Media[]>([]);
@@ -136,7 +136,7 @@ export function Composer() {
           : action === 'now'
             ? 'Posting now'
             : r.post.status === 'awaiting_approval'
-              ? 'Sent to the client for approval'
+              ? 'Sent for approval'
               : action === 'queue'
                 ? `Added to the queue for ${new Date(r.post.scheduledAt!).toLocaleString(undefined, { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`
                 : 'Scheduled',
@@ -154,8 +154,8 @@ export function Composer() {
   if (!active.length)
     return (
       <div className="card">
-        <Empty title="Add a client first">
-          Posts belong to a client. <Link to="/clients?new=1">Add your first client</Link>.
+        <Empty title="Add a brand first">
+          Posts belong to a brand. <Link to="/clients?new=1">Add your first brand</Link>.
         </Empty>
       </div>
     );
@@ -175,9 +175,9 @@ export function Composer() {
         <div className="stack">
           <div className="card pad stack">
             <label className="field">
-              Client
+              Brand
               <select className="input" value={clientId} disabled={!!id} onChange={(e) => setClientId(e.target.value)}>
-                <option value="">Choose a client…</option>
+                <option value="">Choose a brand…</option>
                 {active.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -216,7 +216,7 @@ export function Composer() {
                 ) : (
                   <div className="banner info">
                     <div className="body">
-                      This client has no channels yet. <Link to={`/clients/${clientId}`}>Connect one</Link>.
+                      This brand has no channels yet. <Link to={`/clients/${clientId}`}>Connect one</Link>.
                     </div>
                   </div>
                 )}
@@ -302,8 +302,8 @@ export function Composer() {
                 <div className="thumbs">
                   {media.map((m) => (
                     <div key={m.id} className="thumb">
-                      <img src={m.url} alt={m.alt} />
-                      <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove image">
+                      <MediaThumb m={m} />
+                      <button className="x" type="button" onClick={() => setMedia(media.filter((x) => x.id !== m.id))} aria-label="Remove media">
                         <X size={13} />
                       </button>
                       {ai.data?.enabled && (
@@ -345,8 +345,8 @@ export function Composer() {
                     upload(e.dataTransfer.files);
                   }}
                 >
-                  {uploading ? <Spinner /> : <ImagePlus size={18} style={{ verticalAlign: -4 }} />} Add images (drop or click). JPEG, PNG, GIF or WebP up to 10 MB.
-                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden onChange={(e) => e.target.files && upload(e.target.files)} />
+                  {uploading ? <Spinner /> : <ImagePlus size={18} style={{ verticalAlign: -4 }} />} Add images or a video (drop or click). Images up to 10 MB; MP4, MOV or WebM video up to 100 MB.
+                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden onChange={(e) => e.target.files && upload(e.target.files)} />
                 </div>
               </div>
             </div>
@@ -384,7 +384,7 @@ export function Composer() {
             <div className="row">
               <input className="input" type="date" style={{ width: 'auto' }} value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
               <input className="input" type="time" style={{ width: 'auto' }} value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
-              {client?.approvalRequired && <span className="pill awaiting_approval">Needs client approval</span>}
+              {client?.approvalRequired && <span className="pill awaiting_approval">Needs approval</span>}
             </div>
             <ErrorBanner error={error} />
             <div className="row">
@@ -397,7 +397,7 @@ export function Composer() {
                 </button>
               )}
               {!!client?.queueSlots?.length && (
-                <button className="btn" disabled={!!busy || !selected.length || hasIssues} onClick={() => save('queue')} title="Next free posting time for this client">
+                <button className="btn" disabled={!!busy || !selected.length || hasIssues} onClick={() => save('queue')} title="Next free posting time for this brand">
                   {busy === 'queue' ? <Spinner /> : <CalendarPlus size={15} />} Add to queue
                 </button>
               )}
@@ -428,13 +428,18 @@ export function Composer() {
                   {!!media.length && (
                     <div className="imgs" style={{ gridTemplateColumns: media.length > 1 ? '1fr 1fr' : '1fr' }}>
                       {media.slice(0, 4).map((m) => (
-                        <img key={m.id} src={m.url} alt={m.alt} />
+                        <MediaThumb key={m.id} m={m} />
                       ))}
                     </div>
                   )}
                   {check?.issues.map((i) => (
                     <div key={i} className="issue" style={{ marginTop: 8 }}>
                       <AlertCircle size={14} style={{ flex: 'none', marginTop: 2 }} /> {i}
+                    </div>
+                  ))}
+                  {check?.warnings?.map((i) => (
+                    <div key={i} className="issue" style={{ marginTop: 8, color: 'var(--warning)' }}>
+                      <AlertCircle size={14} style={{ flex: 'none', marginTop: 2 }} /> Brand guard: {i}
                     </div>
                   ))}
                   {c.status === 'disconnected' && (

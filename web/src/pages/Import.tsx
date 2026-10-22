@@ -57,8 +57,8 @@ export function ImportPage() {
       </div>
       <div className="card pad stack">
         <div className="row">
-          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => (setClientId(e.target.value), setRows(null))} aria-label="Client">
-            <option value="">Choose a client…</option>
+          <select className="input" style={{ width: 'auto' }} value={clientId} onChange={(e) => (setClientId(e.target.value), setRows(null))} aria-label="Brand">
+            <option value="">Choose a brand…</option>
             {active.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -86,9 +86,9 @@ export function ImportPage() {
           <textarea className="input mono" rows={7} value={csv} onChange={(e) => (setCsv(e.target.value), setRows(null))} placeholder={TEMPLATE} />
         </label>
         <p className="tiny muted">
-          Columns: <span className="kbd">date</span> (2026-11-05 or 05/11/2026), <span className="kbd">time</span> (14:30 or 2:30 pm, in the client's time zone), <span className="kbd">text</span>,{' '}
+          Columns: <span className="kbd">date</span> (2026-11-05 or 05/11/2026), <span className="kbd">time</span> (14:30 or 2:30 pm, in the brand's time zone), <span className="kbd">text</span>,{' '}
           <span className="kbd">channels</span> (network names like bluesky, channel names, or "all"), <span className="kbd">image_url</span> (links separated by spaces) and <span className="kbd">first_comment</span>. Rows without a
-          date go into the next free posting time{client && !client.queueSlots?.length ? ' (this client has none set, so they become drafts)' : ''}.
+          date go into the next free posting time{client && !client.queueSlots?.length ? ' (this brand has none set, so they become drafts)' : ''}.
         </p>
         <ErrorBanner error={error} />
         <div className="row">

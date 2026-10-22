@@ -35,6 +35,7 @@ export const config = {
   threads: app(env.THREADS_APP_ID, env.THREADS_APP_SECRET),
   pinterest: app(env.PINTEREST_APP_ID, env.PINTEREST_APP_SECRET),
   google: app(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
+  tiktok: app(env.TIKTOK_CLIENT_KEY, env.TIKTOK_CLIENT_SECRET),
   /** The AI writing assistant. Switched off when no key is set. */
   ai: {
     apiKey: env.ANTHROPIC_API_KEY ?? '',
@@ -42,6 +43,10 @@ export const config = {
     /** Requests per workspace per day, so one runaway script can't run up the bill. */
     dailyLimit: Number(env.AI_DAILY_LIMIT) || 300,
   },
+  /** Chitthi, the WhatsApp Business app agencies connect for approvals, alerts and client chats. */
+  chitthiUrl: (env.CHITTHI_URL || 'https://app.chitthi.live').replace(/\/+$/, ''),
+  /** People who are always Surecast superadmins, comma separated. Others are added in the admin panel. */
+  adminEmails: (env.ADMIN_EMAILS ?? '').split(/[,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean),
   /** Posts more than this many minutes late are held for review instead of going out. */
   lateLimitMinutes: Number(env.LATE_LIMIT_MINUTES) || 120,
   /** Run the scheduler inside the web process. Tests turn this off and call tick() directly. */

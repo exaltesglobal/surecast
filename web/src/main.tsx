@@ -16,7 +16,10 @@ import { ConnectPick } from './pages/ConnectPick';
 import { Dashboard } from './pages/Dashboard';
 import { ImportPage } from './pages/Import';
 import { InboxPage } from './pages/Inbox';
+import { AdminPage } from './pages/Admin';
+import { DevelopersPage } from './pages/Developers';
 import { Login } from './pages/Login';
+import { MomentsPage } from './pages/Moments';
 import { Portal } from './pages/Portal';
 import { PostDetail } from './pages/PostDetail';
 import { PostsPage } from './pages/Posts';
@@ -52,6 +55,9 @@ const router = createBrowserRouter([
       { path: '/connect/:id', element: <ConnectPick /> },
       { path: '/alerts', element: <AlertsPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/moments', element: <MomentsPage /> },
+      { path: '/developers', element: <DevelopersPage /> },
+      { path: '/admin', element: <AdminPage /> },
       { path: '*', element: <div className="empty"><h3>Page not found</h3></div> },
     ],
   },

@@ -1,5 +1,5 @@
 import { Loader2, X } from 'lucide-react';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { platformInfo, STATUS_LABEL } from '../lib/platforms';
 
@@ -148,4 +148,10 @@ export function ErrorBanner({ error }: { error: string | null }) {
       <div className="body">{error}</div>
     </div>
   );
+}
+
+/** An image, or a muted first-frame preview for a video. */
+export function MediaThumb({ m, style }: { m: { url: string; alt?: string; mime?: string }; style?: CSSProperties }) {
+  if (m.mime?.startsWith('video/')) return <video src={`${m.url}#t=0.1`} muted playsInline preload="metadata" style={style} aria-label={m.alt || 'Video'} />;
+  return <img src={m.url} alt={m.alt ?? ''} style={style} />;
 }

@@ -30,7 +30,7 @@ export function PostingTimes({ client }: { client: Client }) {
         <h3>Posting times</h3>
         {data?.next && <span className="tiny muted">Next free: {fmt(data.next, client.timezone, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>}
       </div>
-      <p className="small muted">Pick the times this client usually posts. "Add to queue" in the composer drops each post into the next free time, so you never have to pick dates.</p>
+      <p className="small muted">Pick the times this brand usually posts. "Add to queue" in the composer drops each post into the next free time, so you never have to pick dates.</p>
       <div className="slots">
         {ORDER.map((d) => (
           <div key={d} className="slot-day">

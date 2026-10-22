@@ -34,7 +34,7 @@ export function Dashboard() {
         </div>
         <div className="grid three">
           {[
-            { n: 1, icon: <Users />, title: 'Add a client', text: 'Each client gets its own channels, time zone and approval settings.', to: '/clients?new=1', cta: 'Add client' },
+            { n: 1, icon: <Users />, title: 'Add a brand', text: 'Each brand gets its own channels, time zone and approval settings.', to: '/clients?new=1', cta: 'Add brand' },
             { n: 2, icon: <PlugZap />, title: 'Connect channels', text: 'Bluesky, Mastodon and Telegram work straight away. More networks switch on as their apps are approved.', to: '/clients', cta: 'Connect' },
             { n: 3, icon: <CheckCircle2 />, title: 'Schedule a post', text: 'Write once, adjust per network, and Surecast makes sure it goes out.', to: '/posts/new', cta: 'Write a post' },
           ].map((s) => (
@@ -110,7 +110,7 @@ export function Dashboard() {
             </div>
           ) : (
             <Empty title="Nothing needs you" icon={<CheckCircle2 size={28} />}>
-              Failures, expiring connections and client change requests show up here.
+              Failures, expiring connections and reviewer change requests show up here.
             </Empty>
           )}
         </section>

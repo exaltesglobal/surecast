@@ -7,6 +7,8 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 
 import { authenticate, HttpError, type Env } from './auth.js';
+import { adminRoutes } from './routes/admin.js';
+import { agencyRoutes, hookRoutes } from './routes/agency.js';
 import { aiRoutes } from './routes/ai.js';
 import { analyticsRoutes, linkRoutes } from './routes/analytics.js';
 import { channelRoutes } from './routes/channels.js';
@@ -14,6 +16,7 @@ import { inboxRoutes } from './routes/inbox.js';
 import { insightRoutes } from './routes/insights.js';
 import { libraryRoutes } from './routes/library.js';
 import { mcpRoutes } from './routes/mcp.js';
+import { openApiRoutes } from './routes/openapi.js';
 import { postRoutes } from './routes/posts.js';
 import { mediaRoutes, publicRoutes } from './routes/public.js';
 import { accountRoutes, workspaceRoutes } from './routes/workspace.js';
@@ -34,6 +37,8 @@ export function createApp() {
   const v1 = new Hono<Env>();
   v1.use(authenticate);
   v1.route('/', publicRoutes);
+  v1.route('/', hookRoutes);
+  v1.route('/', openApiRoutes);
   v1.route('/', accountRoutes);
   v1.route('/', channelRoutes);
   v1.route('/', workspaceRoutes);
@@ -44,6 +49,8 @@ export function createApp() {
   v1.route('/', analyticsRoutes);
   v1.route('/', inboxRoutes);
   v1.route('/', mcpRoutes);
+  v1.route('/', agencyRoutes);
+  v1.route('/', adminRoutes);
   v1.all('*', (c) => c.json({ error: 'Not found' }, 404));
   app.route('/v1', v1);
   // Agents can also use the shorter https://app.surecast.live/mcp.

@@ -20,7 +20,7 @@ export function cleanSlots(v: unknown): Slot[] {
 /** The next posting time with nothing else from this client scheduled in it. */
 export async function nextQueueSlot(client: { id: string; timezone: string; queue_slots: string | null }, now = new Date(), skip: Date[] = []) {
   const slots = cleanSlots(json(client.queue_slots, []));
-  if (!slots.length) throw new HttpError(422, 'Set up posting times for this client first (Clients > the client > Posting times).');
+  if (!slots.length) throw new HttpError(422, 'Set up posting times for this brand first (Brands > the brand > Posting times).');
   const taken = new Set(
     (
       await all<{ scheduled_at: Date }>(

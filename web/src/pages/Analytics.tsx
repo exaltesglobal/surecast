@@ -103,8 +103,8 @@ export function AnalyticsPage() {
         </div>
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
-        <select className="input" style={{ width: 'auto' }} value={client} onChange={(e) => set('client', e.target.value)} aria-label="Client">
-          <option value="">All clients</option>
+        <select className="input" style={{ width: 'auto' }} value={client} onChange={(e) => set('client', e.target.value)} aria-label="Brand">
+          <option value="">All brands</option>
           {clients
             .filter((c) => !c.archivedAt)
             .map((c) => (
@@ -308,7 +308,7 @@ function ExplainCard({ e }: { e: Explained }) {
           className="btn sm"
           onClick={async () => {
             await navigator.clipboard.writeText(text);
-            toast('Copied. Paste it into your client report.');
+            toast('Copied. Paste it into your brand report.');
           }}
         >
           <Copy size={14} /> Copy

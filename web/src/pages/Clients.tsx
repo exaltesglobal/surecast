@@ -17,11 +17,11 @@ export function ClientsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>Clients</h1>
-          <p>Each client has its own channels, time zone, approvals and reports.</p>
+          <h1>Brands</h1>
+          <p>Each brand has its own channels, time zone, approvals and reports.</p>
         </div>
         <button className="btn primary" onClick={() => setParams({ new: '1' })}>
-          <Plus size={16} /> Add client
+          <Plus size={16} /> Add brand
         </button>
       </div>
       {clients.length ? (
@@ -46,7 +46,7 @@ export function ClientsPage() {
         </div>
       ) : (
         <div className="card">
-          <Empty title="No clients yet">Add your first client to connect their channels.</Empty>
+          <Empty title="No brands yet">Add your first brand to connect their channels.</Empty>
         </div>
       )}
       {showNew && <NewClient defaultTz={tz} onClose={() => setParams({})} onSaved={reloadClients} />}
@@ -76,7 +76,7 @@ function NewClient({ onClose, onSaved, defaultTz }: { onClose: () => void; onSav
     }
   };
   return (
-    <Modal title="Add a client" onClose={onClose}>
+    <Modal title="Add a brand" onClose={onClose}>
       <form className="stack" onSubmit={save}>
         <label className="field">
           Name
@@ -99,17 +99,17 @@ function NewClient({ onClose, onSaved, defaultTz }: { onClose: () => void; onSav
           </div>
         </div>
         <label className="check">
-          <input type="checkbox" checked={approvalRequired} onChange={(e) => setApproval(e.target.checked)} /> The client approves posts before they go out
+          <input type="checkbox" checked={approvalRequired} onChange={(e) => setApproval(e.target.checked)} /> An approver signs off posts before they go out
         </label>
         {approvalRequired && (
           <label className="field">
-            Client's email <span className="hint">We email them a link to review posts. No account needed.</span>
+            Approver's email <span className="hint">We email them a link to review posts. No account needed.</span>
             <input className="input" type="email" value={contactEmail} onChange={(e) => setContact(e.target.value)} />
           </label>
         )}
         <ErrorBanner error={error} />
         <button className="btn primary" disabled={busy}>
-          {busy && <Spinner />} Add client
+          {busy && <Spinner />} Add brand
         </button>
       </form>
     </Modal>

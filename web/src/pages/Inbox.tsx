@@ -23,6 +23,7 @@ type Item = {
   receivedAt: string;
   status: 'open' | 'done';
   isReplyToComment: boolean;
+  isDirect?: boolean;
   reply: { text: string; at: string; by: string | null } | null;
   replyError: string | null;
 };
@@ -53,7 +54,7 @@ export function InboxPage() {
       <div className="page-head">
         <div>
           <h1>Inbox</h1>
-          <p>Comments and replies on your clients' posts, from every network, in one place.</p>
+          <p>Comments and replies on your brands' posts, from every network, in one place.</p>
         </div>
         <button
           className="btn"
@@ -74,8 +75,8 @@ export function InboxPage() {
         </button>
       </div>
       <div className="row" style={{ marginBottom: 16 }}>
-        <select className="input" style={{ width: 'auto' }} value={client} onChange={(e) => set('client', e.target.value)} aria-label="Client">
-          <option value="">All clients</option>
+        <select className="input" style={{ width: 'auto' }} value={client} onChange={(e) => set('client', e.target.value)} aria-label="Brand">
+          <option value="">All brands</option>
           {clients
             .filter((c) => !c.archivedAt)
             .map((c) => (
@@ -163,13 +164,17 @@ function InboxCard({ item: i, onChange, onStatus }: { item: Item; onChange: () =
         </div>
       </div>
       <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{i.text}</p>
-      <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
-        <CornerDownRight size={12} />
-        <span className="clamp">
-          {i.isReplyToComment ? 'In a conversation on: ' : 'On: '}
-          {i.postText}
-        </span>
-      </Link>
+      {i.isDirect ? (
+        <span className="tiny muted">WhatsApp message from {i.author.handle}. Free replies work for 24 hours after their last message.</span>
+      ) : (
+        <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+          <CornerDownRight size={12} />
+          <span className="clamp">
+            {i.isReplyToComment ? 'In a conversation on: ' : 'On: '}
+            {i.postText}
+          </span>
+        </Link>
+      )}
       {i.reply ? (
         <div className="extra small">
           <strong>Replied{i.reply.by ? ` by ${i.reply.by}` : ''}</strong> <span className="tiny muted">{ago(i.reply.at)}</span>

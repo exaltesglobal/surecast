@@ -11,10 +11,14 @@ import { addMs, hashSecret, isEmail, minutes, newId, randomString, token } from 
 
 export type Role = 'owner' | 'admin' | 'editor';
 export type AuthUser = { id: string; email: string; name: string };
-export type Env = { Variables: { user: AuthUser | null; workspaceId: string; role: Role; viaApiKey: boolean } };
+export type Env = { Variables: { user: AuthUser | null; workspaceId: string; role: Role; viaApiKey: boolean; impersonatedBy: string | null; suspended: boolean } };
 
 const COOKIE = 'sc_session';
+/** While a staff member is looking at a workspace as its owner, their own session waits here. */
+const IMP_COOKIE = 'sc_imp';
+const IMP_MINUTES = 60;
 const SESSION_DAYS = 30;
+export const TRIAL_DAYS = 14;
 
 export class HttpError extends Error {
   constructor(
@@ -60,7 +64,13 @@ export async function verifyCode(c: Context, emailRaw: unknown, codeRaw: unknown
   if (!memberships.length) {
     const wsId = newId('wsp');
     const now = new Date();
-    await run('INSERT INTO workspaces (id, name, timezone, created_at) VALUES (?, ?, ?, ?)', [wsId, user.name ? `${user.name.split(' ')[0]}'s agency` : 'My agency', 'UTC', now]);
+    await run('INSERT INTO workspaces (id, name, timezone, trial_ends_at, created_at) VALUES (?, ?, ?, ?, ?)', [
+      wsId,
+      user.name ? `${user.name.split(' ')[0]}'s workspace` : 'My workspace',
+      'UTC',
+      addMs(now, TRIAL_DAYS * 86_400_000),
+      now,
+    ]);
     await run("INSERT INTO members (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [wsId, user.id, now]);
   }
   const t = token(32);
@@ -73,12 +83,47 @@ export async function logout(c: Context) {
   const t = getCookie(c, COOKIE);
   if (t) await run('DELETE FROM sessions WHERE token_hash = ?', [hashSecret(t)]);
   deleteCookie(c, COOKIE, { path: '/' });
+  const imp = getCookie(c, IMP_COOKIE);
+  if (imp) await run('DELETE FROM sessions WHERE token_hash = ?', [hashSecret(imp)]);
+  deleteCookie(c, IMP_COOKIE, { path: '/' });
+}
+
+/** Signs a staff member in as another user for an hour. Their own session is kept aside. */
+export async function startImpersonation(c: Context, staffId: string, userId: string) {
+  const own = getCookie(c, COOKIE);
+  if (!own) throw new HttpError(401, 'Sign in to continue.');
+  const t = token(32);
+  await run('INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, impersonated_by) VALUES (?, ?, ?, ?, ?, ?)', [
+    newId('ses'),
+    userId,
+    hashSecret(t),
+    addMs(new Date(), minutes(IMP_MINUTES)),
+    new Date(),
+    staffId,
+  ]);
+  const opts = { httpOnly: true, secure: config.production, sameSite: 'Lax' as const, path: '/' };
+  setCookie(c, IMP_COOKIE, own, { ...opts, maxAge: SESSION_DAYS * 86_400 });
+  setCookie(c, COOKIE, t, { ...opts, maxAge: IMP_MINUTES * 60 });
+}
+
+/** Ends an impersonation and puts the staff member's own session back. */
+export async function stopImpersonation(c: Context) {
+  const own = getCookie(c, IMP_COOKIE);
+  const t = getCookie(c, COOKIE);
+  if (!own) throw new HttpError(409, 'You are not viewing anyone else’s account.');
+  const s = t ? await one<{ impersonated_by: string | null; user_id: string }>('SELECT impersonated_by, user_id FROM sessions WHERE token_hash = ?', [hashSecret(t)]) : null;
+  if (t && s?.impersonated_by) await run('DELETE FROM sessions WHERE token_hash = ?', [hashSecret(t)]);
+  setCookie(c, COOKIE, own, { httpOnly: true, secure: config.production, sameSite: 'Lax', path: '/', maxAge: SESSION_DAYS * 86_400 });
+  deleteCookie(c, IMP_COOKIE, { path: '/' });
+  return s;
 }
 
 /** Loads the signed-in user (cookie) or API key, and the workspace in play. */
 export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
   c.set('user', null);
   c.set('viaApiKey', false);
+  c.set('impersonatedBy', null);
+  c.set('suspended', false);
   const bearer = c.req.header('Authorization')?.match(/^Bearer\s+(sc_live_\S+)$/)?.[1];
   if (bearer) {
     const key = await one<{ id: string; workspace_id: string; created_by: string }>('SELECT id, workspace_id, created_by FROM api_keys WHERE key_hash = ?', [hashSecret(bearer)]);
@@ -89,21 +134,28 @@ export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
     c.set('workspaceId', key.workspace_id);
     c.set('role', 'editor');
     c.set('viaApiKey', true);
+    c.set('suspended', !!(await one('SELECT id FROM workspaces WHERE id = ? AND suspended_at IS NOT NULL', [key.workspace_id])));
     return next();
   }
   const t = getCookie(c, COOKIE);
   if (t) {
-    const user = await one<AuthUser>('SELECT u.id, u.email, u.name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?', [hashSecret(t), new Date()]);
-    if (user) {
+    const row = await one<AuthUser & { impersonated_by: string | null }>(
+      'SELECT u.id, u.email, u.name, s.impersonated_by FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?',
+      [hashSecret(t), new Date()],
+    );
+    if (row) {
+      const user: AuthUser = { id: row.id, email: row.email, name: row.name };
       c.set('user', user);
+      c.set('impersonatedBy', row.impersonated_by ?? null);
       const wanted = c.req.header('X-Workspace-Id');
-      const m = await one<{ workspace_id: string; role: Role }>(
-        wanted ? 'SELECT workspace_id, role FROM members WHERE user_id = ? AND workspace_id = ?' : 'SELECT workspace_id, role FROM members WHERE user_id = ? ORDER BY created_at LIMIT 1',
+      const m = await one<{ workspace_id: string; role: Role; suspended_at: Date | null }>(
+        `SELECT m.workspace_id, m.role, w.suspended_at FROM members m JOIN workspaces w ON w.id = m.workspace_id WHERE m.user_id = ?${wanted ? ' AND m.workspace_id = ?' : ' ORDER BY m.created_at LIMIT 1'}`,
         wanted ? [user.id, wanted] : [user.id],
       );
       if (m) {
         c.set('workspaceId', m.workspace_id);
         c.set('role', m.role);
+        c.set('suspended', !!m.suspended_at);
       }
     }
   }
@@ -112,6 +164,8 @@ export const authenticate: MiddlewareHandler<Env> = async (c, next) => {
 
 export const requireUser: MiddlewareHandler<Env> = async (c, next) => {
   if (!c.get('user') || !c.get('workspaceId')) throw new HttpError(401, 'Sign in to continue.');
+  // A suspended workspace can still look at everything, but cannot change anything.
+  if (c.get('suspended') && !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) throw new HttpError(403, 'This workspace is suspended. Contact hello@surecast.live to sort it out.');
   return next();
 };
 
