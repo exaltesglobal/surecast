@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { HttpError, requireUser, type Env } from '../auth.js';
 import { all, json, one, run } from '../db.js';
 import { MAX_VIDEO, mediaUrl, storeMedia } from '../engine/content.js';
+import { trashInDrive } from '../engine/drive.js';
 import { retryFollowUps } from '../engine/followups.js';
 import { cancelPost, postsJson, retryPost, savePost, validateDraft } from '../engine/posts.js';
 import { newId } from '../util.js';
@@ -103,8 +104,10 @@ export const postRoutes = new Hono<Env>()
 
   // Media library
   .get('/media', async (c) => {
-    const rows = await all('SELECT id, filename, mime, size, alt, public_key, created_at FROM media WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 200', [c.get('workspaceId')]);
-    return c.json({ media: rows.map((m) => ({ id: m.id, filename: m.filename, mime: m.mime, size: m.size, alt: m.alt ?? '', url: mediaUrl(m.public_key), createdAt: m.created_at })) });
+    const rows = await all('SELECT id, filename, mime, size, alt, public_key, drive_file_id, created_at FROM media WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 200', [c.get('workspaceId')]);
+    return c.json({
+      media: rows.map((m) => ({ id: m.id, filename: m.filename, mime: m.mime, size: m.size, alt: m.alt ?? '', url: mediaUrl(m.public_key), storage: m.drive_file_id ? 'drive' : 'surecast', createdAt: m.created_at })),
+    });
   })
   .post('/media', async (c) => {
     const form = await c.req.parseBody();
@@ -113,8 +116,8 @@ export const postRoutes = new Hono<Env>()
     if (file.size > MAX_VIDEO) throw new HttpError(413, 'Videos can be up to 100 MB.');
     const buf = Buffer.from(await file.arrayBuffer());
     const alt = typeof form.alt === 'string' ? form.alt.slice(0, 2000) : '';
-    const { id, filename, mime, key } = await storeMedia(c.get('workspaceId'), buf, file.name, alt);
-    return c.json({ media: { id, filename, mime, size: buf.length, alt, url: mediaUrl(key) } }, 201);
+    const { id, filename, mime, key, storage } = await storeMedia(c.get('workspaceId'), buf, file.name, alt);
+    return c.json({ media: { id, filename, mime, size: buf.length, alt, url: mediaUrl(key), storage } }, 201);
   })
   .patch('/media/:id', async (c) => {
     const alt = String((await body(c)).alt ?? '').slice(0, 2000);
@@ -127,7 +130,9 @@ export const postRoutes = new Hono<Env>()
       [c.get('workspaceId'), `%"${c.req.param('id')}"%`],
     );
     if (used) throw new HttpError(409, 'This image is used by a post that has not gone out yet.');
+    const m = await one<{ drive_file_id: string | null }>('SELECT drive_file_id FROM media WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
     const gone = await run('DELETE FROM media WHERE id = ? AND workspace_id = ?', [c.req.param('id'), c.get('workspaceId')]);
     if (gone) await run('DELETE FROM media_chunks WHERE media_id = ?', [c.req.param('id')]);
+    if (gone && m?.drive_file_id) await trashInDrive(c.get('workspaceId'), m.drive_file_id);
     return c.json({ ok: true });
   });

@@ -12,6 +12,7 @@ import { agencyRoutes, hookRoutes } from './routes/agency.js';
 import { aiRoutes } from './routes/ai.js';
 import { analyticsRoutes, linkRoutes } from './routes/analytics.js';
 import { channelRoutes } from './routes/channels.js';
+import { driveRoutes } from './routes/drive.js';
 import { inboxRoutes } from './routes/inbox.js';
 import { insightRoutes } from './routes/insights.js';
 import { libraryRoutes } from './routes/library.js';
@@ -40,6 +41,7 @@ export function createApp() {
   v1.route('/', hookRoutes);
   v1.route('/', openApiRoutes);
   v1.route('/', accountRoutes);
+  v1.route('/', driveRoutes);
   v1.route('/', channelRoutes);
   v1.route('/', workspaceRoutes);
   v1.route('/', postRoutes);

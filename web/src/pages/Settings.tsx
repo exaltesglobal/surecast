@@ -1,6 +1,6 @@
-import { Bot, Hash, KeyRound, MessageCircle, Trash2, Webhook } from 'lucide-react';
+import { Bot, HardDrive, Hash, KeyRound, MessageCircle, Trash2, Webhook } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { useApp } from '../components/Layout';
 import { CopyField, ErrorBanner, Loading, Modal, Spinner, useLoad, useToast } from '../components/ui';
@@ -31,13 +31,14 @@ export function SettingsPage() {
         <div className="stack">
           {admin ? (
             <>
+              <GoogleDrive />
               <WhatsApp />
               <ApiKeys />
               <AgentAccess />
               <Webhooks />
             </>
           ) : (
-            <div className="card pad muted">Ask a workspace admin to manage WhatsApp, API keys and webhooks.</div>
+            <div className="card pad muted">Ask a workspace admin to manage Google Drive, WhatsApp, API keys and webhooks.</div>
           )}
         </div>
       </div>
@@ -553,6 +554,107 @@ function WhatsApp() {
               }
             >
               Disconnect
+            </button>
+          </div>
+        </>
+      )}
+      <ErrorBanner error={error} />
+    </section>
+  );
+}
+
+type DriveState = { available: boolean; drive: { account: string; status: string; lastError: string | null; lastUsedAt: string | null; connectedAt: string } | null };
+
+/** Google Drive: new images and videos are kept in the workspace's own Drive. */
+function GoogleDrive() {
+  const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const { data, reload } = useLoad(() => api<DriveState>('/integrations/google-drive'));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(params.get('driveError'));
+  useEffect(() => {
+    if (params.get('drive') === 'connected') toast('Google Drive connected');
+    if (params.has('drive') || params.has('driveError')) setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!data) return <Loading />;
+  const drive = data.drive;
+  return (
+    <section className="card pad stack" id="drive">
+      <h2>
+        <HardDrive size={18} style={{ verticalAlign: -3, color: '#1a73e8' }} /> Google Drive
+      </h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Keep the images and videos for your posts in your own Google Drive. New uploads are saved to a Surecast folder there and fetched when each post goes out. Surecast can only see the files it saves, never the rest of your Drive.
+      </p>
+      {!data.available ? (
+        <p className="small muted" style={{ margin: 0 }}>
+          Not switched on yet. The Surecast team needs to add the Google Cloud app keys.
+        </p>
+      ) : !drive ? (
+        <button
+          className="btn primary"
+          style={{ alignSelf: 'flex-start' }}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              window.location.href = (await api<{ redirect: string }>('/integrations/google-drive', { method: 'POST' })).redirect;
+            } catch (e) {
+              setError((e as Error).message);
+              setBusy(false);
+            }
+          }}
+        >
+          {busy && <Spinner size={13} />} Connect Google Drive
+        </button>
+      ) : (
+        <>
+          <div className="small">
+            Saving to <strong>{drive.account}</strong>
+            {drive.lastUsedAt && <span className="muted"> · last used {ago(drive.lastUsedAt)}</span>}
+          </div>
+          {drive.status === 'error' && drive.lastError && (
+            <div className="banner warning">{drive.lastError} Until then, new uploads are kept in Surecast so nothing is lost.</div>
+          )}
+          <div className="row">
+            {drive.status === 'error' && (
+              <button
+                className="btn primary"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    window.location.href = (await api<{ redirect: string }>('/integrations/google-drive', { method: 'POST' })).redirect;
+                  } catch (e) {
+                    setError((e as Error).message);
+                    setBusy(false);
+                  }
+                }}
+              >
+                Reconnect
+              </button>
+            )}
+            <button
+              className="btn ghost danger"
+              disabled={busy}
+              onClick={async () => {
+                if (!confirm('Disconnect Google Drive? Files used by posts that have not gone out yet are copied back into Surecast first. Other files stay in your Drive.')) return;
+                setBusy(true);
+                setError(null);
+                try {
+                  const r = await api<{ copied: number; leftInDrive: number }>('/integrations/google-drive', { method: 'DELETE' });
+                  toast(r.copied ? `Disconnected. ${r.copied} file${r.copied === 1 ? '' : 's'} copied back for upcoming posts.` : 'Google Drive disconnected');
+                  await reload();
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy && <Spinner size={13} />} Disconnect
             </button>
           </div>
         </>

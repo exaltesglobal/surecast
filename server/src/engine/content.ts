@@ -3,8 +3,9 @@
 import { config } from '../config.js';
 import { HttpError } from '../auth.js';
 import { all, run } from '../db.js';
-import type { Adapter, MediaFile } from '../platforms/index.js';
+import { PublishError, type Adapter, type MediaFile } from '../platforms/index.js';
 import { newId, token } from '../util.js';
+import { downloadFromDrive, DriveError, getDrive, uploadToDrive } from './drive.js';
 
 export type MediaMeta = { id: string; mime: string; size: number; filename: string; alt: string; public_key: string };
 
@@ -56,18 +57,35 @@ export function mediaFiles(meta: MediaMeta[]): MediaFile[] {
     size: m.size,
     alt: m.alt,
     url: mediaUrl(m.public_key),
-    data: () => mediaData(m.id, m.filename),
+    data: () => mediaData(m.id, m.filename).catch(driveFailure),
   }));
 }
 
-/** The bytes of an image or video, joining the chunks a video is stored in. */
+/** Turns a Google Drive problem into a publish error: a missing file or lost access will not fix itself by retrying. */
+function driveFailure(e: unknown): never {
+  if (!(e instanceof DriveError)) throw e;
+  if (e.status === 0 || e.status === 429 || e.status >= 500) throw new PublishError('temporary', 'drive_unavailable', e.message, 'Surecast will retry automatically.');
+  throw new PublishError('permanent', 'drive_media', e.message, 'Fix it in Google Drive or Settings, then retry the post.');
+}
+
+/** The bytes of an image or video, from Google Drive or joined from the chunks a video is stored in. */
 export async function mediaData(id: string, filename = 'file'): Promise<Buffer> {
-  const row = (await all<{ data: Buffer; chunks: number }>('SELECT data, chunks FROM media WHERE id = ?', [id]))[0];
+  const row = (await all<{ workspace_id: string; data: Buffer; chunks: number; drive_file_id: string | null }>('SELECT workspace_id, data, chunks, drive_file_id FROM media WHERE id = ?', [id]))[0];
   if (!row) throw new Error(`${filename} was deleted`);
+  if (row.drive_file_id) return downloadFromDrive(row.workspace_id, row.drive_file_id, filename);
   if (!row.chunks) return row.data;
   const parts = await all<{ data: Buffer }>('SELECT data FROM media_chunks WHERE media_id = ? ORDER BY seq', [id]);
   if (parts.length !== row.chunks) throw new Error(`${filename} is incomplete; upload it again`);
   return Buffer.concat(parts.map((p) => p.data));
+}
+
+/** Keeps the bytes in the Surecast database: images in one row, videos in 4 MB chunks. */
+export async function storeBytes(id: string, buf: Buffer) {
+  const video = !!sniffVideo(buf);
+  const chunks = video ? Math.ceil(buf.length / CHUNK) : 0;
+  await run('DELETE FROM media_chunks WHERE media_id = ?', [id]);
+  for (let i = 0; i < chunks; i++) await run('INSERT INTO media_chunks (media_id, seq, data) VALUES (?, ?, ?)', [id, i, buf.subarray(i * CHUNK, (i + 1) * CHUNK)]);
+  await run('UPDATE media SET data = ?, chunks = ?, drive_file_id = NULL WHERE id = ?', [video ? Buffer.alloc(0) : buf, chunks, id]);
 }
 
 /** Detects MP4, MOV and WebM video from the first bytes. */
@@ -90,7 +108,11 @@ export const MAX_UPLOAD = 10_000_000;
 export const MAX_VIDEO = 100_000_000;
 const CHUNK = 4_000_000;
 
-/** Saves an image or video to the media library. Media lives in the database so it survives redeploys. */
+/**
+ * Saves an image or video to the media library. It goes to the workspace's Google Drive when one
+ * is connected, and otherwise into the database, so it survives redeploys either way. If Drive
+ * fails, the file is kept in Surecast so the upload still works, and Settings shows the problem.
+ */
 export async function storeMedia(workspaceId: string, buf: Buffer, name: string, alt = '') {
   const video = sniffVideo(buf);
   const mime = video ?? sniffImage(buf);
@@ -100,9 +122,10 @@ export async function storeMedia(workspaceId: string, buf: Buffer, name: string,
   const id = newId('med');
   const key = token(18);
   const filename = (name || (video ? 'video' : 'image')).replace(/[^\w.\- ]+/g, '').slice(0, 190) || 'file';
-  const chunks = video ? Math.ceil(buf.length / CHUNK) : 0;
-  for (let i = 0; i < chunks; i++) await run('INSERT INTO media_chunks (media_id, seq, data) VALUES (?, ?, ?)', [id, i, buf.subarray(i * CHUNK, (i + 1) * CHUNK)]);
-  await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, chunks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+  const drive = await getDrive(workspaceId);
+  let driveFileId: string | null = null;
+  if (drive) driveFileId = await uploadToDrive(drive, buf, filename, mime).catch(() => null);
+  await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, chunks, drive_file_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)', [
     id,
     workspaceId,
     key,
@@ -110,9 +133,10 @@ export async function storeMedia(workspaceId: string, buf: Buffer, name: string,
     mime,
     buf.length,
     alt || null,
-    video ? Buffer.alloc(0) : buf,
-    chunks,
+    Buffer.alloc(0),
+    driveFileId,
     new Date(),
   ]);
-  return { id, filename, mime, key };
+  if (!driveFileId) await storeBytes(id, buf);
+  return { id, filename, mime, key, storage: driveFileId ? ('drive' as const) : ('surecast' as const) };
 }
