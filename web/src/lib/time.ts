@@ -43,10 +43,14 @@ export function ago(iso: string | Date | null | undefined) {
 
 export const browserTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
+// Some browsers list old IANA names (Asia/Calcutta, Europe/Kiev), so the current names are added too.
+const COMMON = ['UTC', 'Asia/Kolkata', 'Asia/Kathmandu', 'Asia/Ho_Chi_Minh', 'Europe/Kyiv', 'America/Nuuk', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Australia/Sydney'];
 export const TIMEZONES: string[] = (() => {
+  let all: string[] = [];
   try {
-    return (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone');
+    all = (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone');
   } catch {
-    return ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Australia/Sydney'];
+    /* older browsers */
   }
+  return [...new Set([...all, ...COMMON])].sort();
 })();

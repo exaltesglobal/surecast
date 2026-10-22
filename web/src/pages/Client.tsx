@@ -2,6 +2,7 @@ import { FileBarChart, Lock, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-re
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
+import { Feeds, PostingTimes } from '../components/ClientExtras';
 import { useApp } from '../components/Layout';
 import { Avatar, CopyField, Empty, ErrorBanner, Loading, Modal, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -71,63 +72,70 @@ export function ClientPage() {
       </div>
 
       <div className="grid two" style={{ alignItems: 'start' }}>
-        <section className="card">
-          <div className="card-head">
-            <h2>Channels</h2>
-          </div>
-          {data?.channels.length ? (
-            <div className="list">
-              {data.channels.map((ch) => (
-                <div key={ch.id} className="list-item" style={{ alignItems: 'center' }}>
-                  <Avatar src={ch.avatarUrl} name={ch.name} platform={ch.platform} size={36} />
-                  <div className="grow">
-                    <strong>{ch.name}</strong>
-                    <div className="tiny muted">
-                      {platformInfo(ch.platform).label} {ch.handle} · checked {ago(ch.lastCheckedAt)}
-                      {ch.tokenExpiresAt && ` · expires ${fmt(ch.tokenExpiresAt, undefined, { dateStyle: 'medium' })}`}
+        <div className="stack">
+          <section className="card">
+            <div className="card-head">
+              <h2>Channels</h2>
+            </div>
+            {data?.channels.length ? (
+              <div className="list">
+                {data.channels.map((ch) => (
+                  <div key={ch.id} className="list-item" style={{ alignItems: 'center' }}>
+                    <Avatar src={ch.avatarUrl} name={ch.name} platform={ch.platform} size={36} />
+                    <div className="grow">
+                      <strong>{ch.name}</strong>
+                      <div className="tiny muted">
+                        {platformInfo(ch.platform).label} {ch.handle} · checked {ago(ch.lastCheckedAt)}
+                        {ch.tokenExpiresAt && ` · expires ${fmt(ch.tokenExpiresAt, undefined, { dateStyle: 'medium' })}`}
+                      </div>
+                      {ch.statusDetail && ch.status !== 'ok' && (
+                        <div className="tiny" style={{ color: ch.status === 'disconnected' ? 'var(--error)' : 'var(--warning)' }}>
+                          {ch.statusDetail}
+                        </div>
+                      )}
                     </div>
-                    {ch.statusDetail && ch.status !== 'ok' && <div className="tiny" style={{ color: ch.status === 'disconnected' ? 'var(--error)' : 'var(--warning)' }}>{ch.statusDetail}</div>}
-                  </div>
-                  <Pill status={ch.status} />
-                  {ch.status !== 'ok' && platforms.data && (
-                    <button className="btn sm accent" onClick={() => setConnecting(platforms.data!.platforms.find((p) => p.platform === ch.platform)!)}>
-                      Reconnect
+                    <Pill status={ch.status} />
+                    {ch.status !== 'ok' && platforms.data && (
+                      <button className="btn sm accent" onClick={() => setConnecting(platforms.data!.platforms.find((p) => p.platform === ch.platform)!)}>
+                        Reconnect
+                      </button>
+                    )}
+                    <button className="btn ghost sm" disabled={busy === ch.id} onClick={() => check(ch)} title="Check connection" aria-label="Check connection">
+                      {busy === ch.id ? <Spinner /> : <RefreshCw size={15} />}
                     </button>
-                  )}
-                  <button className="btn ghost sm" disabled={busy === ch.id} onClick={() => check(ch)} title="Check connection" aria-label="Check connection">
-                    {busy === ch.id ? <Spinner /> : <RefreshCw size={15} />}
+                    <button
+                      className="btn ghost sm danger"
+                      title="Remove channel"
+                      aria-label="Remove channel"
+                      onClick={async () => {
+                        if (!confirm(`Remove ${ch.name}? Posts scheduled for it will be cancelled.`)) return;
+                        await api(`/channels/${ch.id}`, { method: 'DELETE' });
+                        toast('Channel removed');
+                        reload();
+                        reloadClients();
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty title="No channels yet">Connect one below.</Empty>
+            )}
+            <div className="card-body" style={{ borderTop: '1px solid var(--line)' }}>
+              <strong className="small">Connect a channel</strong>
+              <div className="row" style={{ marginTop: 10 }}>
+                {platforms.data?.platforms.map((p) => (
+                  <button key={p.platform} className="btn sm" onClick={() => setConnecting(p)} title={p.available ? '' : (p.unavailableReason ?? '')} style={{ opacity: p.available ? 1 : 0.6 }}>
+                    <PlatformBadge platform={p.platform} size={18} /> {p.label} {!p.available && <Lock size={12} />}
                   </button>
-                  <button
-                    className="btn ghost sm danger"
-                    title="Remove channel"
-                    aria-label="Remove channel"
-                    onClick={async () => {
-                      if (!confirm(`Remove ${ch.name}? Posts scheduled for it will be cancelled.`)) return;
-                      await api(`/channels/${ch.id}`, { method: 'DELETE' });
-                      toast('Channel removed');
-                      reload();
-                      reloadClients();
-                    }}
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          ) : (
-            <Empty title="No channels yet">Connect one below.</Empty>
-          )}
-          <div className="card-body" style={{ borderTop: '1px solid var(--line)' }}>
-            <strong className="small">Connect a channel</strong>
-            <div className="row" style={{ marginTop: 10 }}>
-              {platforms.data?.platforms.map((p) => (
-                <button key={p.platform} className="btn sm" onClick={() => setConnecting(p)} title={p.available ? '' : (p.unavailableReason ?? '')} style={{ opacity: p.available ? 1 : 0.6 }}>
-                  <PlatformBadge platform={p.platform} size={18} /> {p.label} {!p.available && <Lock size={12} />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+          <Feeds client={client} channels={data?.channels ?? []} />
+        </div>
 
         <div className="stack">
           <section className="card pad stack">
@@ -154,6 +162,7 @@ export function ClientPage() {
               Replace links
             </button>
           </section>
+          <PostingTimes client={client} />
           <ClientSettings />
           <BrandVoice />
         </div>
@@ -347,7 +356,15 @@ function ConnectModal({ platform, clientId, onClose, onDone }: { platform: Platf
           {platform.connect.fields.map((f) => (
             <label key={f.name} className="field">
               {f.label}
-              <input className="input" type={f.type === 'password' ? 'password' : 'text'} placeholder={f.placeholder} required={f.required} value={values[f.name] ?? ''} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} autoComplete="off" />
+              <input
+                className="input"
+                type={f.type === 'password' ? 'password' : 'text'}
+                placeholder={f.placeholder}
+                required={f.required}
+                value={values[f.name] ?? ''}
+                onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                autoComplete="off"
+              />
               {f.help && <span className="hint">{f.help}</span>}
             </label>
           ))}

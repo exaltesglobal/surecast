@@ -10,7 +10,10 @@ export type Client = {
   channelCount: number;
   channelsAtRisk: number;
   voice: Voice | null;
+  queueSlots: Slot[];
 };
+
+export type Slot = { day: number; time: string };
 
 export type Voice = { description: string; audience: string; dos: string; donts: string; examples: string; language: string };
 
@@ -50,6 +53,7 @@ export type Target = {
   publishedAt: string | null;
   remoteUrl: string | null;
   error: { code: string; message: string; hint: string } | null;
+  followUps: { total: number; done: number; error: string | null; pending: boolean } | null;
   log?: Attempt[];
 };
 
@@ -63,6 +67,10 @@ export type Post = {
   body: string;
   source: string;
   scheduledAt: string | null;
+  thread: string[];
+  firstComment: string;
+  recycle: { days: number; times: number };
+  recycledFrom: string | null;
   createdAt: string;
   updatedAt: string;
   media: Media[];
@@ -82,3 +90,7 @@ export type PlatformDef = {
 };
 
 export type Me = { user: { id: string; email: string; name: string }; workspaces: { id: string; name: string; timezone: string; role: string }[]; workspaceId: string | null };
+
+export type Snippet = { id: string; clientId: string | null; name: string; body: string };
+
+export type Feed = { id: string; clientId: string; url: string; title: string; channelIds: string[]; template: string; mode: 'queue' | 'draft' | 'now'; active: boolean; lastCheckedAt: string | null; lastItemAt: string | null; lastError: string | null };

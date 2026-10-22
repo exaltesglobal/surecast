@@ -14,6 +14,8 @@ import { addMs, clip, minutes, newId, token } from '../util.js';
 import { emailAlerts, raiseAlert, resolveAlerts } from './alerts.js';
 import { channelCtx, channelFailed, channelOk, checkChannel, getChannel, sweepChannels, type ChannelRow } from './channels.js';
 import { contentIssues, mediaFiles, mediaMeta } from './content.js';
+import { checkFeeds } from './feeds.js';
+import { followUpsFor, runFollowUps } from './followups.js';
 import { emitEvent } from './webhooks.js';
 
 export type TargetRow = Row & {
@@ -29,7 +31,7 @@ export type TargetRow = Row & {
   lock_token: string | null;
 };
 
-type PostRow = Row & { id: string; workspace_id: string; client_id: string; body: string; media_ids: string; status: string };
+type PostRow = Row & { id: string; workspace_id: string; client_id: string; body: string; media_ids: string; status: string; recycle_left: number; recycle_days: number | null; scheduled_at: Date | null };
 
 /** Delay before retry n (1-based). Six attempts span about 1 hour 36 minutes, inside the late limit. */
 const BACKOFF = [minutes(1), minutes(5), minutes(15), minutes(30), minutes(45)];
@@ -55,6 +57,58 @@ export async function rollupPost(postId: string) {
   else if (statuses.every((s) => s === 'failed')) status = 'failed';
   else status = 'partial';
   if (status !== post.status) await run('UPDATE posts SET status = ?, updated_at = ? WHERE id = ?', [status, new Date(), postId]);
+  if (status === 'published' && post.recycle_left > 0) await recycle(post);
+}
+
+/**
+ * Evergreen posts come back: once a post is fully published, a copy is scheduled
+ * recycle_days later, until the number of repeats runs out.
+ */
+async function recycle(post: PostRow) {
+  // Only one caller can take the repeat, so a post is never copied twice.
+  const took = await run('UPDATE posts SET recycle_left = 0 WHERE id = ? AND recycle_left > 0', [post.id]);
+  if (!took || !post.recycle_days) return;
+  const now = new Date();
+  const base = post.scheduled_at && post.scheduled_at > now ? post.scheduled_at : now;
+  const at = addMs(base, post.recycle_days * 24 * 60 * 60 * 1000);
+  const targets = await all<{ channel_id: string; body_override: string | null }>(
+    "SELECT t.channel_id, t.body_override FROM post_targets t JOIN channels c ON c.id = t.channel_id WHERE t.post_id = ? AND t.status = 'published'",
+    [post.id],
+  );
+  if (!targets.length) return;
+  const id = newId('pst');
+  await run(
+    `INSERT INTO posts (id, workspace_id, client_id, author_id, status, body, media_ids, scheduled_at, approval_status, source, thread, first_comment, recycle_days, recycle_left, recycled_from, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, 'recycle', ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      post.workspace_id,
+      post.client_id,
+      post.author_id,
+      post.body,
+      post.media_ids,
+      at,
+      post.approval_status === 'not_needed' ? 'not_needed' : 'approved',
+      post.thread,
+      post.first_comment,
+      post.recycle_days,
+      post.recycle_left - 1,
+      post.recycled_from ?? post.id,
+      now,
+      now,
+    ],
+  );
+  for (const t of targets)
+    await run("INSERT INTO post_targets (id, post_id, workspace_id, channel_id, body_override, status, due_at, next_attempt_at, updated_at) VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)", [
+      newId('tgt'),
+      id,
+      post.workspace_id,
+      t.channel_id,
+      t.body_override,
+      at,
+      at,
+      now,
+    ]);
 }
 
 async function context(t: TargetRow) {
@@ -159,9 +213,11 @@ export async function publishTarget(targetId: string, now = new Date()): Promise
     const result = await a.publish(channelCtx(channel), { text, media: mediaFiles(meta), idempotencyKey: `${t.id}` });
     const done = clock();
     await run("UPDATE attempts SET finished_at = ?, outcome = 'success' WHERE id = ?", [done, attemptId]);
+    const followUps = followUpsFor(a, post).length;
     await run(
-      "UPDATE post_targets SET status = 'published', lock_token = NULL, locked_until = NULL, next_attempt_at = NULL, remote_id = ?, remote_url = ?, published_at = ?, error_code = NULL, error_message = NULL, error_hint = NULL, updated_at = ? WHERE id = ? AND lock_token = ?",
-      [clip(result.remoteId, 190), clip(result.url, 500), done, done, t.id, lock],
+      `UPDATE post_targets SET status = 'published', lock_token = NULL, locked_until = NULL, next_attempt_at = NULL, remote_id = ?, remote_url = ?, published_at = ?, error_code = NULL, error_message = NULL, error_hint = NULL,
+        followups_total = ?, followups_done = 0, followups_ids = NULL, followups_attempts = 0, followups_error = NULL, followups_next_at = ?, updated_at = ? WHERE id = ? AND lock_token = ?`,
+      [clip(result.remoteId, 190), clip(result.url, 500), done, followUps, followUps ? done : null, done, t.id, lock],
     );
     await channelOk(channel, done);
     await resolveAlerts(t.workspace_id, [`target:${t.id}:failed`, `target:${t.id}:waiting`, `target:${t.id}:preflight`]);
@@ -342,8 +398,10 @@ export function tick(source = 'interval', now = () => new Date()): Promise<TickR
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
     });
+    await step('followups', () => runFollowUps(now()));
     await step('preflight', () => preflight(now()));
     await step('channels', () => sweepChannels(now()));
+    await step('feeds', () => checkFeeds(now()));
     await step('email', () => emailAlerts());
     return { published, source };
   })().finally(() => (running = null));

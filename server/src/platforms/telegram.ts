@@ -98,4 +98,10 @@ export const telegram: Adapter = {
     const msgs = await tg<{ message_id: number }[]>(c.botToken, 'sendMediaGroup', form);
     return { remoteId: String(msgs[0].message_id), url: messageUrl(ch, msgs[0].message_id) };
   },
+  followUps: 'thread',
+  async reply(ch, target, text) {
+    const c = ch.credentials as Creds;
+    const msg = await tg<{ message_id: number }>(c.botToken, 'sendMessage', { chat_id: c.chatId, text, reply_parameters: { message_id: Number(target.parentId), allow_sending_without_reply: true } });
+    return { remoteId: String(msg.message_id), url: messageUrl(ch, msg.message_id) };
+  },
 };

@@ -1,10 +1,11 @@
-import { KeyRound, Trash2, Webhook } from 'lucide-react';
+import { Hash, KeyRound, Trash2, Webhook } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useApp } from '../components/Layout';
 import { CopyField, ErrorBanner, Loading, Modal, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { ago, TIMEZONES } from '../lib/time';
+import type { Snippet } from '../lib/types';
 
 type Member = { id: string; email: string; name: string; role: string };
 
@@ -24,6 +25,7 @@ export function SettingsPage() {
         <div className="stack">
           <WorkspaceForm admin={admin} />
           <Team admin={admin} />
+          <Snippets />
         </div>
         <div className="stack">{admin ? <><ApiKeys /><Webhooks /></> : <div className="card pad muted">Ask a workspace admin to manage API keys and webhooks.</div>}</div>
       </div>
@@ -292,6 +294,74 @@ function Webhooks() {
       >
         <input className="input" style={{ flex: 1 }} type="url" required placeholder="https://example.com/surecast-hook" value={url} onChange={(e) => setUrl(e.target.value)} />
         <button className="btn">Add</button>
+      </form>
+    </section>
+  );
+}
+
+/** Hashtag groups, signatures and disclaimers to drop into any post. */
+function Snippets() {
+  const toast = useToast();
+  const { clients } = useApp();
+  const { data, reload } = useLoad(() => api<{ snippets: Snippet[] }>('/snippets'));
+  const [form, setForm] = useState({ name: '', body: '', clientId: '' });
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>
+          <Hash size={18} style={{ verticalAlign: -3 }} /> Snippets and hashtag groups
+        </h2>
+      </div>
+      <div className="card-body small muted">Save text you use often, like a hashtag set or a sign-off. Insert it from the composer.</div>
+      <div className="list">
+        {data?.snippets.map((sn) => (
+          <div key={sn.id} className="list-item">
+            <div className="grow" style={{ minWidth: 0 }}>
+              <strong className="small">{sn.name}</strong> <span className="tiny muted">{sn.clientId ? clients.find((c) => c.id === sn.clientId)?.name : 'All clients'}</span>
+              <div className="tiny muted clamp">{sn.body}</div>
+            </div>
+            <button
+              className="btn ghost sm danger"
+              aria-label="Delete snippet"
+              onClick={async () => {
+                await api(`/snippets/${sn.id}`, { method: 'DELETE' });
+                reload();
+              }}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <form
+        className="card-body stack"
+        style={{ borderTop: '1px solid var(--line)' }}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await api('/snippets', { body: { ...form, clientId: form.clientId || null } });
+            setForm({ name: '', body: '', clientId: form.clientId });
+            reload();
+          } catch (err) {
+            toast((err as Error).message, 'error');
+          }
+        }}
+      >
+        <div className="row">
+          <input className="input" style={{ flex: 1, minWidth: 160 }} required placeholder="Name, e.g. Bakery hashtags" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Snippet name" />
+          <select className="input" style={{ width: 'auto' }} value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} aria-label="Client">
+            <option value="">All clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <textarea className="input" rows={2} required placeholder="#PuneFood #Bakery #FreshBread" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} aria-label="Snippet text" />
+        <button className="btn" style={{ alignSelf: 'flex-start' }}>
+          Save snippet
+        </button>
       </form>
     </section>
   );

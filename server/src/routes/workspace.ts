@@ -106,13 +106,13 @@ export const workspaceRoutes = new Hono<Env>()
   // Clients
   .get('/clients', async (c) => {
     const clients = await all(
-      `SELECT cl.id, cl.name, cl.timezone, cl.color, cl.approval_required AS approvalRequired, cl.contact_email AS contactEmail, cl.share_token AS shareToken, cl.archived_at AS archivedAt, cl.voice,
+      `SELECT cl.id, cl.name, cl.timezone, cl.color, cl.approval_required AS approvalRequired, cl.contact_email AS contactEmail, cl.share_token AS shareToken, cl.archived_at AS archivedAt, cl.voice, cl.queue_slots AS queueSlots,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id) AS channelCount,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id AND ch.status <> 'ok') AS channelsAtRisk
        FROM clients cl WHERE cl.workspace_id = ? ORDER BY cl.archived_at IS NOT NULL, cl.name`,
       [c.get('workspaceId')],
     );
-    return c.json({ clients: clients.map((x) => ({ ...x, voice: parseVoice(x.voice), approvalRequired: !!x.approvalRequired, channelCount: Number(x.channelCount), channelsAtRisk: Number(x.channelsAtRisk) })) });
+    return c.json({ clients: clients.map((x) => ({ ...x, voice: parseVoice(x.voice), queueSlots: JSON.parse(x.queueSlots || '[]'), approvalRequired: !!x.approvalRequired, channelCount: Number(x.channelCount), channelsAtRisk: Number(x.channelsAtRisk) })) });
   })
   .post('/clients', async (c) => {
     const b = await body(c);

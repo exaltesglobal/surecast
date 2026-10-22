@@ -13,6 +13,7 @@ import { ClientsPage } from './pages/Clients';
 import { Composer } from './pages/Composer';
 import { ConnectPick } from './pages/ConnectPick';
 import { Dashboard } from './pages/Dashboard';
+import { ImportPage } from './pages/Import';
 import { Login } from './pages/Login';
 import { Portal } from './pages/Portal';
 import { PostDetail } from './pages/PostDetail';
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: '/calendar', element: <CalendarPage /> },
       { path: '/posts', element: <PostsPage /> },
       { path: '/posts/new', element: <Composer /> },
+      { path: '/posts/import', element: <ImportPage /> },
       { path: '/posts/:id', element: <PostDetail /> },
       { path: '/posts/:id/edit', element: <Composer /> },
       { path: '/clients', element: <ClientsPage /> },

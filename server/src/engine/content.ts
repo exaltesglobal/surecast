@@ -1,8 +1,10 @@
 // Checks a post against a platform's limits. Used by the composer as you type, by the
 // pre-flight check before the slot, and right before publishing.
 import { config } from '../config.js';
-import { all } from '../db.js';
+import { HttpError } from '../auth.js';
+import { all, run } from '../db.js';
 import type { Adapter, MediaFile } from '../platforms/index.js';
+import { newId, token } from '../util.js';
 
 export type MediaMeta = { id: string; mime: string; size: number; filename: string; alt: string; public_key: string };
 
@@ -43,4 +45,27 @@ export function mediaFiles(meta: MediaMeta[]): MediaFile[] {
       return row.data;
     },
   }));
+}
+
+/** Detects the real image type from its first bytes rather than trusting the upload. */
+export function sniffImage(buf: Buffer): string | null {
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buf.subarray(0, 4).toString('ascii') === 'GIF8') return 'image/gif';
+  if (buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return null;
+}
+
+export const MAX_UPLOAD = 10_000_000;
+
+/** Saves an image to the media library. Images live in the database so they survive redeploys. */
+export async function storeMedia(workspaceId: string, buf: Buffer, name: string, alt = '') {
+  if (buf.length > MAX_UPLOAD) throw new HttpError(413, 'Images can be up to 10 MB.');
+  const mime = sniffImage(buf);
+  if (!mime) throw new HttpError(422, 'Use a JPEG, PNG, GIF or WebP image.');
+  const id = newId('med');
+  const key = token(18);
+  const filename = (name || 'image').replace(/[^\w.\- ]+/g, '').slice(0, 190) || 'image';
+  await run('INSERT INTO media (id, workspace_id, public_key, filename, mime, size, alt, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, workspaceId, key, filename, mime, buf.length, alt || null, buf, new Date()]);
+  return { id, filename, mime, key };
 }

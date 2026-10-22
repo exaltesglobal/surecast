@@ -4,7 +4,7 @@ import { all, db, migrate, run } from '../src/db.js';
 import { overrideAdapter, PublishError, type Adapter, type PublishInput } from '../src/platforms/index.js';
 import { encrypt, newId, token } from '../src/util.js';
 
-const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage'];
+const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage', 'snippets', 'feeds'];
 
 export async function resetDb() {
   await migrate();
@@ -17,6 +17,8 @@ export type Behaviour = 'ok' | 'temporary' | 'auth' | 'permanent' | 'hang';
 export function fakeAdapter(platform = 'bluesky') {
   const queue: Behaviour[] = [];
   const published: PublishInput[] = [];
+  const replyQueue: Behaviour[] = [];
+  const replies: { parentId: string; rootId: string; text: string }[] = [];
   let checkResult: Behaviour = 'ok';
   const a: Adapter = {
     platform: platform as Adapter['platform'],
@@ -45,11 +47,21 @@ export function fakeAdapter(platform = 'bluesky') {
       published.push(input);
       return { remoteId: `r${published.length}`, url: `https://fake.example/p/${published.length}` };
     },
+    followUps: 'thread',
+    async reply(_ch, target, text) {
+      const b = replyQueue.shift() ?? 'ok';
+      if (b === 'temporary') throw new PublishError('temporary', 'server_error', 'Fakebook returned 503', 'Will retry.', 503);
+      if (b === 'permanent') throw new PublishError('permanent', 'rejected', 'Fakebook returned 400', 'Edit it.', 400);
+      replies.push({ ...target, text });
+      return { remoteId: `c${replies.length}`, url: null };
+    },
   };
   overrideAdapter(a);
   return {
     queue,
     published,
+    replyQueue,
+    replies,
     setCheck: (b: Behaviour) => (checkResult = b),
   };
 }
