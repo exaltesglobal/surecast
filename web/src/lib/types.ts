@@ -11,7 +11,16 @@ export type Client = {
   channelsAtRisk: number;
   voice: Voice | null;
   queueSlots: Slot[];
+  paused: { at: string; until: string | null; reason: string; by: string; missed: MissedMode } | null;
+  guard: Guard;
+  whatsappPhone: string | null;
+  whatsappInbox: boolean;
+  digestEnabled: boolean;
+  digestSentAt: string | null;
 };
+
+export type MissedMode = 'skip' | 'post_now' | 'queue';
+export type Guard = { banned: string[]; required: string[]; mode: 'block' | 'warn' };
 
 export type Slot = { day: number; time: string };
 
@@ -90,7 +99,14 @@ export type PlatformDef = {
   connect: { kind: 'fields' | 'oauth'; help: string; fields: { name: string; label: string; type: string; placeholder?: string; help?: string; required?: boolean }[] };
 };
 
-export type Me = { user: { id: string; email: string; name: string }; workspaces: { id: string; name: string; timezone: string; role: string }[]; workspaceId: string | null };
+export type Me = {
+  user: { id: string; email: string; name: string };
+  workspaces: { id: string; name: string; timezone: string; role: string }[];
+  workspaceId: string | null;
+  staffRole: string | null;
+  impersonating: { by: string } | null;
+  announcements: { id: string; title: string; body: string; level: string }[];
+};
 
 export type Snippet = { id: string; clientId: string | null; name: string; body: string };
 

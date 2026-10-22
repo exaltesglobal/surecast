@@ -6,8 +6,11 @@ import { emailHtml, sendEmail } from '../mail.js';
 import { adapter } from '../platforms/index.js';
 import { newId } from '../util.js';
 import { raiseAlert, resolveAlerts } from './alerts.js';
+import { holdIfPaused } from './brake.js';
+import { whatsappApproval } from './chitthi.js';
 import { contentIssues, mediaMeta, mediaUrl } from './content.js';
 import { followUpsFor, threadParts } from './followups.js';
+import { guardIssues, parseGuard } from './guard.js';
 import { rollupPost } from './publisher.js';
 import { nextQueueSlot } from './queue.js';
 
@@ -24,7 +27,7 @@ export type PostInput = {
   recycle?: unknown;
 };
 
-type ClientRow = Row & { id: string; name: string; approval_required: number; contact_email: string | null; share_token: string; timezone: string; queue_slots: string | null };
+type ClientRow = Row & { id: string; workspace_id: string; name: string; whatsapp_phone: string | null; approval_required: number; contact_email: string | null; share_token: string; timezone: string; queue_slots: string | null };
 
 const strArray = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
@@ -41,7 +44,12 @@ export async function validateDraft(workspaceId: string, input: PostInput) {
   const overrides = (input.overrides && typeof input.overrides === 'object' ? input.overrides : {}) as Record<string, string>;
   const body = typeof input.body === 'string' ? input.body : '';
   const media = await mediaMeta(strArray(input.mediaIds));
-  const channels = channelIds.length ? await all<{ id: string; platform: string; name: string }>('SELECT id, platform, name FROM channels WHERE id IN (?) AND workspace_id = ?', [channelIds, workspaceId]) : [];
+  const channels = channelIds.length
+    ? await all<{ id: string; platform: string; name: string; guard: string | null }>(
+        'SELECT ch.id, ch.platform, ch.name, cl.guard FROM channels ch JOIN clients cl ON cl.id = ch.client_id WHERE ch.id IN (?) AND ch.workspace_id = ?',
+        [channelIds, workspaceId],
+      )
+    : [];
   const extras = { thread: threadParts(input.thread), first_comment: typeof input.firstComment === 'string' ? input.firstComment : null };
   return channels.map((ch) => {
     const a = adapter(ch.platform);
@@ -52,7 +60,12 @@ export async function validateDraft(workspaceId: string, input: PostInput) {
       const n = a.count(f.text);
       if (n > a.limits.maxChars) issues.push(`${f.kind === 'comment' ? 'The first comment' : `Thread part ${i + 2}`} is ${n} characters; ${a.label} allows ${a.limits.maxChars}.`);
     }
-    return { channelId: ch.id, platform: ch.platform, count: a.count(text), max: ch.platform === 'telegram' && media.length ? 1024 : a.limits.maxChars, issues };
+    // The client's brand safety guard: blocking rules are issues, the rest are warnings.
+    const guard = parseGuard(ch.guard);
+    const flagged = [...guardIssues(guard, text), ...followUpsFor(a, extras).flatMap((f) => guardIssues({ ...guard, required: [] }, f.text))];
+    const warnings = guard.mode === 'block' ? [] : flagged;
+    if (guard.mode === 'block') issues.push(...flagged);
+    return { channelId: ch.id, platform: ch.platform, count: a.count(text), max: ch.platform === 'telegram' && media.length ? 1024 : a.limits.maxChars, issues, warnings };
   });
 }
 
@@ -180,12 +193,13 @@ export async function savePost(workspaceId: string, user: AuthUser | null, input
   }
   await resolveAlerts(workspaceId, targets.flatMap((t) => [`target:${t.id}:failed`, `target:${t.id}:preflight`, `target:${t.id}:waiting`]));
   await rollupPost(id);
+  await holdIfPaused(id);
 
   if (approval === 'pending' && (existing?.approval_status !== 'pending' || contentChanged)) await requestApproval(client, id, user);
   return id;
 }
 
-async function requestApproval(client: ClientRow, postId: string, user: AuthUser | null) {
+export async function requestApproval(client: ClientRow, postId: string, user: AuthUser | null) {
   await run('INSERT INTO post_comments (id, post_id, author_name, from_client, kind, body, created_at) VALUES (?, ?, ?, 0, ?, ?, ?)', [
     newId('cmt'),
     postId,
@@ -194,8 +208,10 @@ async function requestApproval(client: ClientRow, postId: string, user: AuthUser
     'Sent for client approval.',
     new Date(),
   ]);
-  if (!client.contact_email) return;
   const url = `${config.publicUrl}/c/${client.share_token}`;
+  // Clients answer WhatsApp faster than email: send both when the agency has Chitthi connected.
+  if (client.whatsapp_phone) await whatsappApproval(client.workspace_id, client.whatsapp_phone, client.name, url).catch((e) => console.error('WhatsApp approval message failed', e));
+  if (!client.contact_email) return;
   await sendEmail(
     client.contact_email,
     `A post is ready for your approval`,
@@ -221,6 +237,7 @@ export async function decideApproval(postId: string, clientId: string, decision:
   if (decision === 'approved') {
     await run("UPDATE post_targets SET status = 'scheduled', updated_at = ? WHERE post_id = ? AND status = 'awaiting_approval'", [now, postId]);
     await resolveAlerts(post.workspace_id, [`post:${postId}:changes`]);
+    await holdIfPaused(postId);
   } else {
     const client = await one<{ name: string }>('SELECT name FROM clients WHERE id = ?', [clientId]);
     await raiseAlert({
@@ -252,7 +269,7 @@ export async function retryPost(workspaceId: string, postId: string, targetId?: 
 
 export async function cancelPost(workspaceId: string, postId: string) {
   const n = await run(
-    "UPDATE post_targets SET status = 'cancelled', next_attempt_at = NULL, updated_at = ? WHERE post_id = ? AND workspace_id = ? AND status IN ('draft', 'awaiting_approval', 'scheduled', 'retrying')",
+    "UPDATE post_targets SET status = 'cancelled', next_attempt_at = NULL, updated_at = ? WHERE post_id = ? AND workspace_id = ? AND status IN ('draft', 'awaiting_approval', 'scheduled', 'retrying', 'paused')",
     [new Date(), postId, workspaceId],
   );
   if (!n) throw new HttpError(409, 'Nothing left to cancel on this post.');

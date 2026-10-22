@@ -3,11 +3,13 @@
 // goes out, and learns a client's voice from what they have already published.
 import Anthropic from '@anthropic-ai/sdk';
 
-import { HttpError } from '../auth.js';
+import { HttpError, type AuthUser } from '../auth.js';
 import { config } from '../config.js';
 import { all, one, run } from '../db.js';
 import { adapter, adapters } from '../platforms/index.js';
 import { analytics } from './analytics.js';
+import { fetchPublic } from './fetch.js';
+import { savePost } from './posts.js';
 
 export type Voice = { description: string; audience: string; dos: string; donts: string; examples: string; language: string };
 export const EMPTY_VOICE: Voice = { description: '', audience: '', dos: '', donts: '', examples: '', language: '' };
@@ -436,15 +438,38 @@ export async function explainResults(workspaceId: string, b: Record<string, any>
   return data as { headline: string; wins: string[]; watch: string[]; next: string[] };
 }
 
-/** Three short reply options to a comment, in the client's voice. */
+/** Three short reply options to a comment or WhatsApp message, in the client's voice. */
 export async function suggestReplies(workspaceId: string, itemId: string) {
-  const item = await one<{ client_id: string; platform: string; body: string; author_name: string; post_id: string; target_id: string }>(
-    'SELECT client_id, platform, body, author_name, post_id, target_id FROM inbox_items WHERE id = ? AND workspace_id = ?',
+  const item = await one<{ client_id: string; platform: string; body: string; author_name: string; target_id: string | null; root_remote_id: string; received_at: Date }>(
+    'SELECT client_id, platform, body, author_name, target_id, root_remote_id, received_at FROM inbox_items WHERE id = ? AND workspace_id = ?',
     [itemId, workspaceId],
   );
   if (!item) throw new HttpError(404, 'That message is no longer in the inbox.');
   const ctx = await context(workspaceId, item.client_id);
-  const post = await one<{ text: string }>('SELECT COALESCE(t.body_override, p.body) AS text FROM post_targets t JOIN posts p ON p.id = t.post_id WHERE t.id = ?', [item.target_id]);
+  if (item.platform === 'whatsapp') {
+    // The last few messages from the same person, so the reply fits the conversation.
+    const earlier = await all<{ body: string; reply_text: string | null }>(
+      "SELECT body, reply_text FROM inbox_items WHERE workspace_id = ? AND client_id = ? AND platform = 'whatsapp' AND root_remote_id = ? AND received_at < ? ORDER BY received_at DESC LIMIT 6",
+      [workspaceId, item.client_id, item.root_remote_id, item.received_at],
+    );
+    const history = earlier
+      .reverse()
+      .map((m) => `${item.author_name}: ${m.body}${m.reply_text ? `\n${ctx.name}: ${m.reply_text}` : ''}`)
+      .join('\n');
+    const data = await call(workspaceId, {
+      task: 'reply',
+      system: system(ctx, 'This is a private WhatsApp chat with a customer, not a public post: be helpful and personal, like a good shop assistant.'),
+      content: text(
+        `${item.author_name} sent ${ctx.name} a WhatsApp message. Suggest 3 different short replies from ${ctx.name}, each under 500 characters. ` +
+          'Answer only with facts you can see here; if you do not know (prices, stock, opening hours), say someone will confirm shortly instead of guessing. No hashtags.\n\n' +
+          `<source>\n${history ? `Earlier in the chat:\n${history}\n\n` : ''}New message from ${item.author_name}: ${item.body}\n</source>`,
+      ),
+      schema: obj({ replies: STRS }),
+      effort: 'low',
+    });
+    return { replies: (data.replies as string[]).slice(0, 3) };
+  }
+  const post = item.target_id ? await one<{ text: string }>('SELECT COALESCE(t.body_override, p.body) AS text FROM post_targets t JOIN posts p ON p.id = t.post_id WHERE t.id = ?', [item.target_id]) : null;
   const a = adapter(item.platform);
   const data = await call(workspaceId, {
     task: 'reply',
@@ -459,4 +484,98 @@ export async function suggestReplies(workspaceId: string, itemId: string) {
     effort: 'low',
   });
   return { replies: (data.replies as string[]).slice(0, 3) };
+}
+
+// ---------------------------------------------------------------- campaign from a link
+
+const decodeEntities = (s: string) =>
+  s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+
+/** The readable parts of a web page: title, description and main text. */
+export function pageText(html: string) {
+  const meta = (name: string) =>
+    html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i'))?.[1] ??
+    html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${name}["']`, 'i'))?.[1] ??
+    '';
+  const title = decodeEntities(meta('og:title') || html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '').trim();
+  const description = decodeEntities(meta('og:description') || meta('description')).trim();
+  const main = html.match(/<(main|article)[^>]*>([\s\S]*?)<\/\1>/i)?.[2] ?? html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
+  const body = decodeEntities(
+    main
+      .replace(/<(script|style|noscript|svg|nav|footer|header|form)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|div)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' '),
+  )
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
+  return { title: title.slice(0, 300), description: description.slice(0, 1000), text: body.slice(0, 12_000) };
+}
+
+/**
+ * A whole campaign from one link: reads the page (a product, a blog post, an event) and writes
+ * a run of posts that build on each other, then saves them as drafts or straight into the
+ * client's queue. No other scheduler turns a URL into a ready-to-approve week of posts.
+ */
+export async function campaignFromUrl(workspaceId: string, user: AuthUser | null, b: Record<string, any>) {
+  const url = clip(b.url, 2000, 'link');
+  if (!/^https?:\/\//i.test(url)) throw new HttpError(422, 'Paste a link that starts with https://');
+  const ctx = await context(workspaceId, b.clientId);
+  if (!b.clientId) throw new HttpError(422, 'Choose a client.');
+  const channelIds: string[] = Array.isArray(b.channelIds) ? b.channelIds.filter((x: unknown): x is string => typeof x === 'string') : [];
+  const channels = channelIds.length ? await all<{ id: string; platform: string }>('SELECT id, platform FROM channels WHERE id IN (?) AND client_id = ? AND workspace_id = ?', [channelIds, b.clientId, workspaceId]) : [];
+  if (channels.length !== channelIds.length) throw new HttpError(422, 'Some channels do not belong to this client.');
+  const platforms = [...new Set(channels.map((c) => c.platform))];
+  const count = Math.min(Math.max(Number(b.count) || 5, 2), 14);
+  const mode = b.mode === 'queue' ? 'queue' : 'draft';
+  const page = await fetchPublic(url, { maxBytes: 2_000_000, accept: 'text/html,application/xhtml+xml' });
+  if (!/html|xml|text/i.test(page.contentType)) throw new HttpError(422, 'That link is not a web page.');
+  const src = pageText(page.body.toString('utf8'));
+  if (src.text.length < 80 && !src.description) throw new HttpError(422, 'Could not find enough text on that page to write from. Try the page of a specific product, article or event.');
+  const tightest = platforms.length ? Math.min(...platforms.map((p) => adapter(p).limits.maxChars)) : null;
+  const rules = [
+    platforms.length ? `The posts go to: ${platforms.map((p) => STYLE[p]).join(' ')}` : '',
+    tightest ? `One text is shared by every network, so each post must stay under ${tightest} characters including the link and hashtags.` : '',
+    `Include this exact link in every post where links make sense for the networks: ${page.url}`,
+    b.goal ? `The goal of the campaign: ${clip(b.goal, 300, 'goal')}.` : '',
+    b.language ? `Write in ${clip(b.language, 40, 'language')}.` : '',
+  ].filter(Boolean);
+  const data = await call(workspaceId, {
+    task: 'campaign',
+    system: system(ctx),
+    content: text(
+      `Plan a short social media campaign of ${count} posts about the page below, to go out over the coming days in order. ` +
+        'Build a story: open with the news or hook, then benefits, details, proof or behind the scenes, questions for the audience, and close with a final reminder. ' +
+        'Every post must take a different angle and stand on its own. Use only facts from the page.\n' +
+        `${rules.join('\n')}\n\n<source>\nTitle: ${src.title}\nDescription: ${src.description}\n\n${src.text}\n</source>`,
+    ),
+    schema: obj({ name: STR, posts: { type: 'array', items: obj({ angle: STR, text: STR }) } }),
+    effort: 'medium',
+  });
+  const posts = (data.posts as { angle: string; text: string }[]).slice(0, count);
+  const saved: { id: string; angle: string; text: string; status: string; fits: boolean; note: string | null }[] = [];
+  for (const p of posts) {
+    const fits = fitsAll(p.text, platforms);
+    let action: 'draft' | 'queue' = mode === 'queue' && fits && channelIds.length ? 'queue' : 'draft';
+    let note: string | null = mode === 'queue' && action === 'draft' ? (fits ? 'Saved as a draft: choose channels to queue it.' : 'Saved as a draft: it is too long for one of the networks.') : null;
+    let id: string;
+    try {
+      id = await savePost(workspaceId, user, { clientId: b.clientId, body: p.text, channelIds, action }, undefined, 'campaign');
+    } catch (e) {
+      if (action !== 'queue') throw e;
+      // The queue is full or the client has no posting times: keep the post as a draft.
+      note = `Saved as a draft: ${(e as Error).message}`;
+      action = 'draft';
+      id = await savePost(workspaceId, user, { clientId: b.clientId, body: p.text, channelIds, action }, undefined, 'campaign');
+    }
+    saved.push({ id, angle: p.angle, text: p.text, status: action === 'queue' ? 'queued' : 'draft', fits, note });
+  }
+  return { name: String(data.name ?? src.title), source: { url: page.url, title: src.title }, posts: saved };
 }

@@ -1,4 +1,4 @@
-import { BarChart3, Bell, CalendarDays, Inbox, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Sun, Users } from 'lucide-react';
+import { BarChart3, Bell, CalendarDays, CalendarHeart, Inbox, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Shield, Sun, Users, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
@@ -38,6 +38,23 @@ export function Shell() {
   const [inboxCount, setInboxCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useTheme();
+  const [plan, setPlan] = useState<WorkspaceInfo | null>(null);
+  const [dismissed, setDismissed] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sc_dismissed') ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+  const dismiss = (id: string) => {
+    const next = [...dismissed, id].slice(-50);
+    setDismissed(next);
+    try {
+      localStorage.setItem('sc_dismissed', JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const reloadClients = async () => setClients((await api<{ clients: Client[] }>('/clients')).clients);
   const refreshAlerts = () => {
@@ -54,6 +71,9 @@ export function Shell() {
       .then(async (m) => {
         if (m.workspaceId) workspaceId.set(m.workspaceId);
         setMe(m);
+        api<{ workspace: WorkspaceInfo }>('/workspace')
+          .then((r) => setPlan(r.workspace))
+          .catch(() => undefined);
         await reloadClients();
         refreshAlerts();
       })
@@ -70,6 +90,22 @@ export function Shell() {
 
   return (
     <Ctx.Provider value={{ me, clients, reloadClients, alertCount, inboxCount, refreshAlerts, tz }}>
+      {me.impersonating && (
+        <div className="staff-bar" role="status">
+          <Shield size={16} />
+          <span>
+            You are viewing <strong>{ws?.name}</strong> as {me.user.email}. Signed in as {me.impersonating.by}. Everything you do is logged.
+          </span>
+          <button
+            onClick={async () => {
+              await api('/impersonation/stop', { method: 'POST' });
+              window.location.href = '/admin';
+            }}
+          >
+            Back to admin
+          </button>
+        </div>
+      )}
       <div className="mobile-bar">
         <button onClick={() => setOpen(!open)} aria-label="Menu">
           <Menu />
@@ -109,12 +145,20 @@ export function Shell() {
             <NavItem to="/clients" icon={<Users size={18} />}>
               Clients
             </NavItem>
+            <NavItem to="/moments" icon={<CalendarHeart size={18} />}>
+              Moments
+            </NavItem>
             <NavItem to="/alerts" icon={<Bell size={18} />} badge={alertCount}>
               Alerts
             </NavItem>
             <NavItem to="/settings" icon={<Settings size={18} />}>
               Settings
             </NavItem>
+            {me.staffRole && (
+              <NavItem to="/admin" icon={<Shield size={18} />}>
+                Surecast admin
+              </NavItem>
+            )}
           </nav>
           <div className="spacer" />
           {me.workspaces.length > 1 && (
@@ -157,10 +201,51 @@ export function Shell() {
           </div>
         </aside>
         <main className="main">
+          {plan?.suspended && (
+            <div className="banner error announce">
+              <div className="body">
+                <strong>This workspace is suspended</strong>
+                <p>
+                  {plan.suspended.reason}. Nothing is being published and changes are switched off. Write to <a href="mailto:hello@surecast.live">hello@surecast.live</a> to sort it out.
+                </p>
+              </div>
+            </div>
+          )}
+          {!plan?.suspended && plan?.plan.id === 'trial' && plan.plan.trialEndsAt && <TrialNotice endsAt={plan.plan.trialEndsAt} />}
+          {me.announcements
+            .filter((a) => !dismissed.includes(a.id))
+            .map((a) => (
+              <div key={a.id} className={`banner ${a.level === 'critical' ? 'error' : a.level} announce`}>
+                <div className="body">
+                  <strong>{a.title}</strong>
+                  {a.body && <p>{a.body}</p>}
+                </div>
+                <button className="btn ghost sm" aria-label="Dismiss" onClick={() => dismiss(a.id)}>
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
           <Outlet />
         </main>
       </div>
     </Ctx.Provider>
+  );
+}
+
+type WorkspaceInfo = { plan: { id: string; label: string; clientLimit: number | null; trialEndsAt: string | null }; suspended: { at: string; reason: string } | null };
+
+function TrialNotice({ endsAt }: { endsAt: string }) {
+  const days = Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86_400_000);
+  if (days > 3) return null;
+  return (
+    <div className={`banner ${days <= 0 ? 'warning' : 'info'} announce`}>
+      <div className="body">
+        <strong>{days <= 0 ? 'Your free trial has ended' : `Your free trial ends in ${days} day${days === 1 ? '' : 's'}`}</strong>
+        <p>
+          Your posts keep going out. Pick a plan at <a href="https://surecast.live/#pricing">surecast.live/#pricing</a> or write to <a href="mailto:hello@surecast.live">hello@surecast.live</a>.
+        </p>
+      </div>
+    </div>
   );
 }
 

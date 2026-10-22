@@ -9,6 +9,7 @@ export const PLATFORM: Record<string, { label: string; color: string; short: str
   threads: { label: 'Threads', color: '#000000', short: '@' },
   pinterest: { label: 'Pinterest', color: '#e60023', short: 'P' },
   google: { label: 'Google Business', color: '#1a73e8', short: 'G' },
+  whatsapp: { label: 'WhatsApp', color: '#25d366', short: 'W' },
 };
 
 /** Networks where a post can continue as a thread of replies. The rest only take a first comment. */
@@ -27,6 +28,7 @@ export const STATUS_LABEL: Record<string, string> = {
   partial: 'Partly failed',
   failed: 'Failed',
   cancelled: 'Cancelled',
+  paused: 'Paused',
   ok: 'Healthy',
   expiring: 'Expiring',
   failing: 'Failing',

@@ -7,15 +7,20 @@
 //   draft -> awaiting_approval -> scheduled -> publishing -> published
 //                                          \-> retrying -> publishing ...
 //                                          \-> failed (permanent error, retries used up, or missed slot)
+//                                          \-> paused (the client's emergency brake is on) -> scheduled / cancelled
 import { config } from '../config.js';
 import { all, one, run, type Row } from '../db.js';
 import { adapter, PublishError } from '../platforms/index.js';
 import { addMs, clip, minutes, newId, token } from '../util.js';
 import { emailAlerts, raiseAlert, resolveAlerts } from './alerts.js';
+import { autoResume } from './brake.js';
 import { channelCtx, channelFailed, channelOk, checkChannel, getChannel, sweepChannels, type ChannelRow } from './channels.js';
 import { contentIssues, mediaFiles, mediaMeta } from './content.js';
+import { whatsappAlerts } from './chitthi.js';
+import { sendDigests } from './digest.js';
 import { checkFeeds } from './feeds.js';
 import { followUpsFor, runFollowUps } from './followups.js';
+import { guardIssues, parseGuard } from './guard.js';
 import { inboxTick } from './inbox.js';
 import { prepareLinks } from './links.js';
 import { collectStats } from './metrics.js';
@@ -53,6 +58,7 @@ export async function rollupPost(postId: string) {
   let status: string;
   if (!statuses.length) status = post.status === 'draft' ? 'draft' : 'cancelled';
   else if (statuses.includes('draft')) status = 'draft';
+  else if (statuses.includes('paused')) status = 'paused';
   else if (statuses.includes('awaiting_approval')) status = post.approval_status === 'changes_requested' ? 'changes_requested' : 'awaiting_approval';
   else if (statuses.some((s) => s === 'publishing' || s === 'retrying') || (statuses.some((s) => ACTIVE.includes(s)) && statuses.some((s) => !ACTIVE.includes(s)))) status = 'publishing';
   else if (statuses.every((s) => s === 'scheduled')) status = 'scheduled';
@@ -152,6 +158,16 @@ async function fail(t: TargetRow, post: PostRow, channel: ChannelRow | null, err
 
 /** Claims one due target and publishes it. Returns false if someone else had it. */
 export async function publishTarget(targetId: string, now = new Date()): Promise<boolean> {
+  // The emergency brake wins over everything: a paused client's posts wait.
+  const held = await run(
+    "UPDATE post_targets t JOIN posts p ON p.id = t.post_id JOIN clients c ON c.id = p.client_id SET t.status = 'paused', t.next_attempt_at = NULL, t.updated_at = ? WHERE t.id = ? AND t.status IN ('scheduled', 'retrying') AND c.paused_at IS NOT NULL",
+    [now, targetId],
+  );
+  if (held) {
+    const t = await one<{ post_id: string }>('SELECT post_id FROM post_targets WHERE id = ?', [targetId]);
+    if (t) await rollupPost(t.post_id);
+    return false;
+  }
   const lock = token(9);
   const claimed = await run(
     "UPDATE post_targets SET status = 'publishing', lock_token = ?, locked_until = ?, attempts = attempts + 1, updated_at = ? WHERE id = ? AND status IN ('scheduled', 'retrying') AND next_attempt_at <= ?",
@@ -199,6 +215,20 @@ export async function publishTarget(targetId: string, now = new Date()): Promise
   // Short links and UTM tags, when the client has them on. Retries reuse the same short links.
   const text = await prepareLinks(written, { workspaceId: t.workspace_id, clientId: post.client_id, postId: post.id, targetId: t.id, platform: channel.platform });
   const issues = contentIssues(a, text, meta);
+  const guard = parseGuard((await one<{ guard: string | null }>('SELECT guard FROM clients WHERE id = ?', [post.client_id]))?.guard);
+  const guardHit = guard.mode === 'block' ? guardIssues(guard, written) : [];
+  if (guardHit.length) {
+    await run("INSERT INTO attempts (id, target_id, number, started_at, finished_at, outcome, error_code, message) VALUES (?, ?, ?, ?, ?, 'permanent_error', 'brand_guard', ?)", [
+      newId('att'),
+      t.id,
+      t.attempts,
+      now,
+      now,
+      clip(guardHit.join(' '), 1000),
+    ]);
+    await fail(t, post, channel, { code: 'brand_guard', message: `Stopped by the brand safety guard. ${guardHit.join(' ')}`, hint: "Edit the post to follow the client's rules, then retry." }, now);
+    return true;
+  }
   if (issues.length) {
     await run("INSERT INTO attempts (id, target_id, number, started_at, finished_at, outcome, error_code, message) VALUES (?, ?, ?, ?, ?, 'permanent_error', 'invalid_content', ?)", [
       newId('att'),
@@ -343,7 +373,10 @@ async function preflight(now: Date) {
 /** Slots that passed without the post going out. */
 async function watchdog(now: Date) {
   const late = addMs(now, -minutes(config.lateLimitMinutes));
-  const unapproved = await all<TargetRow>("SELECT * FROM post_targets WHERE status = 'awaiting_approval' AND due_at <= ?", [now]);
+  const unapproved = await all<TargetRow>(
+    "SELECT t.* FROM post_targets t JOIN posts p ON p.id = t.post_id JOIN clients c ON c.id = p.client_id WHERE t.status = 'awaiting_approval' AND t.due_at <= ? AND c.paused_at IS NULL",
+    [now],
+  );
   for (const t of unapproved) {
     const { post, channel } = await context(t);
     await fail(t, post, channel, { code: 'not_approved', message: 'The client had not approved this post by its scheduled time', hint: 'Get it approved, then reschedule it.' }, now);
@@ -409,7 +442,10 @@ export function tick(source = 'interval', now = () => new Date()): Promise<TickR
     await step('feeds', () => checkFeeds(now()));
     await step('stats', () => collectStats(now()));
     await step('inbox', () => inboxTick(now()));
+    await step('brake', () => autoResume(now()));
+    await step('digest', () => sendDigests(now()));
     await step('email', () => emailAlerts());
+    await step('whatsapp', () => whatsappAlerts(now()));
     return { published, source };
   })().finally(() => (running = null));
   return running;

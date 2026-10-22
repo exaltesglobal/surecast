@@ -1,10 +1,14 @@
 // Account, workspace settings, team, clients, API keys and webhooks.
 import { Hono } from 'hono';
 
-import { generateApiKey, HttpError, logout, requestCode, requireAdmin, requireUser, verifyCode, type Env } from '../auth.js';
+import { generateApiKey, HttpError, logout, requestCode, requireAdmin, requireUser, stopImpersonation, verifyCode, type Env } from '../auth.js';
 import { config } from '../config.js';
 import { all, one, run } from '../db.js';
+import { activeAnnouncements, audit, PLANS, staffRole } from '../engine/admin.js';
 import { cleanVoice, parseVoice } from '../engine/ai.js';
+import { pauseJson } from '../engine/brake.js';
+import { cleanPhone } from '../engine/chitthi.js';
+import { cleanGuard, parseGuard } from '../engine/guard.js';
 import { emitEvent } from '../engine/webhooks.js';
 import { emailHtml, sendEmail } from '../mail.js';
 import { hashSecret, isEmail, isTimeZone, newId, token } from '../util.js';
@@ -34,7 +38,23 @@ export const accountRoutes = new Hono<Env>()
     const user = c.get('user');
     if (!user) throw new HttpError(401, 'Sign in to continue.');
     const workspaces = await all('SELECT w.id, w.name, w.timezone, m.role FROM members m JOIN workspaces w ON w.id = m.workspace_id WHERE m.user_id = ? ORDER BY m.created_at', [user.id]);
-    return c.json({ user, workspaces, workspaceId: c.get('workspaceId') ?? null });
+    const impersonatedBy = c.get('impersonatedBy');
+    const by = impersonatedBy ? await one<{ email: string }>('SELECT email FROM users WHERE id = ?', [impersonatedBy]) : null;
+    return c.json({
+      user,
+      workspaces,
+      workspaceId: c.get('workspaceId') ?? null,
+      staffRole: impersonatedBy ? null : await staffRole(user),
+      impersonating: impersonatedBy ? { by: by?.email ?? 'Surecast staff' } : null,
+      announcements: await activeAnnouncements(),
+    });
+  })
+  .post('/impersonation/stop', async (c) => {
+    const user = c.get('user');
+    const s = await stopImpersonation(c);
+    const staff = s?.impersonated_by ? await one<{ id: string; email: string; name: string }>('SELECT id, email, name FROM users WHERE id = ?', [s.impersonated_by]) : null;
+    if (staff) await audit(staff, 'workspace.impersonate_stop', { workspaceId: c.get('workspaceId') || null, target: user?.email ?? null });
+    return c.json({ ok: true });
   })
   .patch('/me', requireUser, async (c) => {
     const name = str((await body(c)).name, 120);
@@ -45,8 +65,19 @@ export const accountRoutes = new Hono<Env>()
 export const workspaceRoutes = new Hono<Env>()
   .use(requireUser)
   .get('/workspace', async (c) => {
-    const ws = await one('SELECT id, name, timezone, alert_emails FROM workspaces WHERE id = ?', [c.get('workspaceId')]);
-    return c.json({ workspace: { ...ws, alertEmails: ws?.alert_emails ?? '' }, role: c.get('role') });
+    const ws = await one('SELECT id, name, timezone, alert_emails, plan, trial_ends_at, suspended_at, suspended_reason FROM workspaces WHERE id = ?', [c.get('workspaceId')]);
+    const plan = PLANS[ws?.plan] ?? PLANS.trial;
+    return c.json({
+      workspace: {
+        id: ws?.id,
+        name: ws?.name,
+        timezone: ws?.timezone,
+        alertEmails: ws?.alert_emails ?? '',
+        plan: { id: ws?.plan, label: plan.label, clientLimit: plan.clients, trialEndsAt: ws?.trial_ends_at ?? null },
+        suspended: ws?.suspended_at ? { at: ws.suspended_at, reason: ws.suspended_reason } : null,
+      },
+      role: c.get('role'),
+    });
   })
   .patch('/workspace', requireAdmin, async (c) => {
     const b = await body(c);
@@ -107,12 +138,27 @@ export const workspaceRoutes = new Hono<Env>()
   .get('/clients', async (c) => {
     const clients = await all(
       `SELECT cl.id, cl.name, cl.timezone, cl.color, cl.approval_required AS approvalRequired, cl.contact_email AS contactEmail, cl.share_token AS shareToken, cl.archived_at AS archivedAt, cl.voice, cl.queue_slots AS queueSlots,
+        cl.paused_at, cl.paused_until, cl.paused_reason, cl.paused_by, cl.paused_missed, cl.guard, cl.whatsapp_phone AS whatsappPhone, cl.digest_enabled AS digestEnabled, cl.digest_sent_at AS digestSentAt,
+        (SELECT COUNT(*) FROM integrations g WHERE g.client_id = cl.id AND g.kind = 'chitthi') AS whatsappInbox,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id) AS channelCount,
         (SELECT COUNT(*) FROM channels ch WHERE ch.client_id = cl.id AND ch.status <> 'ok') AS channelsAtRisk
        FROM clients cl WHERE cl.workspace_id = ? ORDER BY cl.archived_at IS NOT NULL, cl.name`,
       [c.get('workspaceId')],
     );
-    return c.json({ clients: clients.map((x) => ({ ...x, voice: parseVoice(x.voice), queueSlots: JSON.parse(x.queueSlots || '[]'), approvalRequired: !!x.approvalRequired, channelCount: Number(x.channelCount), channelsAtRisk: Number(x.channelsAtRisk) })) });
+    return c.json({
+      clients: clients.map(({ paused_at, paused_until, paused_reason, paused_by, paused_missed, guard, ...x }) => ({
+        ...x,
+        voice: parseVoice(x.voice),
+        queueSlots: JSON.parse(x.queueSlots || '[]'),
+        approvalRequired: !!x.approvalRequired,
+        channelCount: Number(x.channelCount),
+        channelsAtRisk: Number(x.channelsAtRisk),
+        paused: pauseJson({ paused_at, paused_until, paused_reason, paused_by, paused_missed } as never),
+        guard: parseGuard(guard),
+        digestEnabled: !!x.digestEnabled,
+        whatsappInbox: Number(x.whatsappInbox) > 0,
+      })),
+    });
   })
   .post('/clients', async (c) => {
     const b = await body(c);
@@ -120,7 +166,12 @@ export const workspaceRoutes = new Hono<Env>()
     if (!name) throw new HttpError(422, 'Give the client a name.');
     if (b.timezone && !isTimeZone(b.timezone)) throw new HttpError(422, 'Unknown time zone.');
     if (b.contactEmail && !isEmail(b.contactEmail)) throw new HttpError(422, 'The contact email is not valid.');
-    const ws = await one<{ timezone: string }>('SELECT timezone FROM workspaces WHERE id = ?', [c.get('workspaceId')]);
+    const ws = await one<{ timezone: string; plan: string }>('SELECT timezone, plan FROM workspaces WHERE id = ?', [c.get('workspaceId')]);
+    const limit = (PLANS[ws?.plan ?? 'trial'] ?? PLANS.trial).clients;
+    if (limit != null) {
+      const active = await one<{ n: number }>('SELECT COUNT(*) AS n FROM clients WHERE workspace_id = ? AND archived_at IS NULL', [c.get('workspaceId')]);
+      if (Number(active?.n ?? 0) >= limit) throw new HttpError(409, `Your plan includes ${limit} clients. Archive one you no longer post for, or move to a bigger plan.`);
+    }
     const id = newId('cli');
     await run('INSERT INTO clients (id, workspace_id, name, timezone, color, approval_required, share_token, contact_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
       id,
@@ -139,10 +190,12 @@ export const workspaceRoutes = new Hono<Env>()
     const b = await body(c);
     if (b.timezone !== undefined && !isTimeZone(b.timezone)) throw new HttpError(422, 'Unknown time zone.');
     if (b.contactEmail && !isEmail(b.contactEmail)) throw new HttpError(422, 'The contact email is not valid.');
+    const phone = b.whatsappPhone ? cleanPhone(b.whatsappPhone) : null;
+    if (b.whatsappPhone && !phone) throw new HttpError(422, 'Enter the WhatsApp number with its country code, like +91 98765 43210.');
     const n = await run(
       `UPDATE clients SET name = COALESCE(NULLIF(?, ''), name), timezone = COALESCE(?, timezone), color = COALESCE(?, color),
         approval_required = COALESCE(?, approval_required), contact_email = IF(?, ?, contact_email), archived_at = IF(?, ?, archived_at),
-        voice = IF(?, ?, voice)
+        voice = IF(?, ?, voice), guard = IF(?, ?, guard), whatsapp_phone = IF(?, ?, whatsapp_phone), digest_enabled = COALESCE(?, digest_enabled)
        WHERE id = ? AND workspace_id = ?`,
       [
         str(b.name, 120),
@@ -155,6 +208,11 @@ export const workspaceRoutes = new Hono<Env>()
         b.archived ? new Date() : null,
         b.voice !== undefined,
         b.voice ? JSON.stringify(cleanVoice(b.voice)) : null,
+        b.guard !== undefined,
+        b.guard ? JSON.stringify(cleanGuard(b.guard)) : null,
+        b.whatsappPhone !== undefined,
+        phone,
+        typeof b.digestEnabled === 'boolean' ? (b.digestEnabled ? 1 : 0) : null,
         c.req.param('id'),
         c.get('workspaceId'),
       ],

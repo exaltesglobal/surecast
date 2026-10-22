@@ -356,4 +356,84 @@ export const MIGRATIONS: string[][] = [
       KEY idx_inbox_client (client_id, status)
     ) ${T}`,
   ],
+  [
+    // Plans and staff controls on each workspace.
+    `ALTER TABLE workspaces ADD COLUMN plan VARCHAR(16) NOT NULL DEFAULT 'trial', ADD COLUMN trial_ends_at DATETIME(3) NULL,
+      ADD COLUMN suspended_at DATETIME(3) NULL, ADD COLUMN suspended_reason VARCHAR(500) NULL, ADD COLUMN staff_notes TEXT NULL`,
+    `UPDATE workspaces SET trial_ends_at = DATE_ADD(created_at, INTERVAL 14 DAY) WHERE trial_ends_at IS NULL`,
+    // A session a Surecast staff member opened to see a workspace as its owner does.
+    `ALTER TABLE sessions ADD COLUMN impersonated_by VARCHAR(24) NULL`,
+    // The Surecast team. People listed in ADMIN_EMAILS are always superadmins.
+    `CREATE TABLE staff (
+      user_id VARCHAR(24) PRIMARY KEY,
+      role VARCHAR(16) NOT NULL,
+      added_by VARCHAR(24) NULL,
+      created_at DATETIME(3) NOT NULL
+    ) ${T}`,
+    `CREATE TABLE audit_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      actor_id VARCHAR(24) NULL,
+      actor_email VARCHAR(190) NOT NULL,
+      action VARCHAR(48) NOT NULL,
+      workspace_id VARCHAR(24) NULL,
+      target VARCHAR(190) NULL,
+      detail TEXT NULL,
+      ip VARCHAR(64) NULL,
+      created_at DATETIME(3) NOT NULL,
+      KEY idx_audit_time (created_at),
+      KEY idx_audit_ws (workspace_id, created_at)
+    ) ${T}`,
+    // Banners the Surecast team shows inside the app.
+    `CREATE TABLE announcements (
+      id VARCHAR(24) PRIMARY KEY,
+      title VARCHAR(200) NOT NULL,
+      body VARCHAR(1000) NOT NULL DEFAULT '',
+      level VARCHAR(12) NOT NULL DEFAULT 'info',
+      starts_at DATETIME(3) NOT NULL,
+      ends_at DATETIME(3) NULL,
+      created_by VARCHAR(24) NULL,
+      created_at DATETIME(3) NOT NULL,
+      KEY idx_announcements_time (starts_at, ends_at)
+    ) ${T}`,
+    // Connections to other apps. Chitthi (WhatsApp) for now: one for the agency (approvals and
+    // alerts on WhatsApp) and one per client (their WhatsApp chats in the inbox).
+    `CREATE TABLE integrations (
+      id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NULL,
+      kind VARCHAR(16) NOT NULL,
+      base_url VARCHAR(255) NOT NULL,
+      credentials TEXT NOT NULL,
+      settings TEXT NULL,
+      account_name VARCHAR(190) NULL,
+      hook_id VARCHAR(64) NULL,
+      hook_token VARCHAR(64) NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'ok',
+      last_error VARCHAR(1000) NULL,
+      last_used_at DATETIME(3) NULL,
+      created_at DATETIME(3) NOT NULL,
+      UNIQUE KEY uq_integrations_scope (workspace_id, kind, client_id),
+      UNIQUE KEY uq_integrations_hook (hook_token)
+    ) ${T}`,
+    // The agency's own dates (launches, anniversaries) next to the built-in calendar of moments.
+    `CREATE TABLE moments (
+      id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NULL,
+      day DATE NOT NULL,
+      name VARCHAR(160) NOT NULL,
+      note VARCHAR(500) NOT NULL DEFAULT '',
+      yearly TINYINT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL,
+      KEY idx_moments_ws (workspace_id, day)
+    ) ${T}`,
+    // Emergency brake, brand safety guard, WhatsApp number and the weekly digest, per client.
+    `ALTER TABLE clients ADD COLUMN paused_at DATETIME(3) NULL, ADD COLUMN paused_until DATETIME(3) NULL, ADD COLUMN paused_reason VARCHAR(500) NULL,
+      ADD COLUMN paused_by VARCHAR(24) NULL, ADD COLUMN paused_missed VARCHAR(12) NULL, ADD COLUMN guard TEXT NULL, ADD COLUMN whatsapp_phone VARCHAR(32) NULL,
+      ADD COLUMN digest_enabled TINYINT NOT NULL DEFAULT 0, ADD COLUMN digest_sent_at DATETIME(3) NULL`,
+    // Alerts also go to WhatsApp when the agency connects Chitthi.
+    `ALTER TABLE alerts ADD COLUMN whatsapp_at DATETIME(3) NULL`,
+    // WhatsApp chats in the inbox have no post behind them.
+    `ALTER TABLE inbox_items MODIFY target_id VARCHAR(24) NULL, MODIFY post_id VARCHAR(24) NULL`,
+  ],
 ];

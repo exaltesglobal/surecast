@@ -23,6 +23,7 @@ type Item = {
   receivedAt: string;
   status: 'open' | 'done';
   isReplyToComment: boolean;
+  isDirect?: boolean;
   reply: { text: string; at: string; by: string | null } | null;
   replyError: string | null;
 };
@@ -163,13 +164,17 @@ function InboxCard({ item: i, onChange, onStatus }: { item: Item; onChange: () =
         </div>
       </div>
       <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{i.text}</p>
-      <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
-        <CornerDownRight size={12} />
-        <span className="clamp">
-          {i.isReplyToComment ? 'In a conversation on: ' : 'On: '}
-          {i.postText}
-        </span>
-      </Link>
+      {i.isDirect ? (
+        <span className="tiny muted">WhatsApp message from {i.author.handle}. Free replies work for 24 hours after their last message.</span>
+      ) : (
+        <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+          <CornerDownRight size={12} />
+          <span className="clamp">
+            {i.isReplyToComment ? 'In a conversation on: ' : 'On: '}
+            {i.postText}
+          </span>
+        </Link>
+      )}
       {i.reply ? (
         <div className="extra small">
           <strong>Replied{i.reply.by ? ` by ${i.reply.by}` : ''}</strong> <span className="tiny muted">{ago(i.reply.at)}</span>

@@ -11,7 +11,7 @@ import { platformInfo } from '../lib/platforms';
 import { utcToZoned, zonedToUtc } from '../lib/time';
 import type { Channel, Media, Post, Snippet } from '../lib/types';
 
-type Check = { channelId: string; platform: string; count: number; max: number; issues: string[] };
+type Check = { channelId: string; platform: string; count: number; max: number; issues: string[]; warnings?: string[] };
 
 export function Composer() {
   const { id } = useParams();
@@ -25,7 +25,7 @@ export function Composer() {
   const [clientId, setClientId] = useState(params.get('client') ?? (active.length === 1 ? active[0].id : ''));
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(params.get('text') ?? '');
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<string>('all');
   const [media, setMedia] = useState<Media[]>([]);
@@ -435,6 +435,11 @@ export function Composer() {
                   {check?.issues.map((i) => (
                     <div key={i} className="issue" style={{ marginTop: 8 }}>
                       <AlertCircle size={14} style={{ flex: 'none', marginTop: 2 }} /> {i}
+                    </div>
+                  ))}
+                  {check?.warnings?.map((i) => (
+                    <div key={i} className="issue" style={{ marginTop: 8, color: 'var(--warning)' }}>
+                      <AlertCircle size={14} style={{ flex: 'none', marginTop: 2 }} /> Brand guard: {i}
                     </div>
                   ))}
                   {c.status === 'disconnected' && (

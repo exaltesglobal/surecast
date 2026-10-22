@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
 import { BioPage, Feeds, LinkTracking, PostingTimes } from '../components/ClientExtras';
+import { BrandGuard, CampaignFromLink, ClientWhatsApp, EmergencyBrake } from '../components/ClientSafety';
 import { useApp } from '../components/Layout';
 import { Avatar, CopyField, Empty, ErrorBanner, Loading, Modal, Pill, PlatformBadge, Spinner, useLoad, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -62,6 +63,8 @@ export function ClientPage() {
           </p>
         </div>
         <div className="row">
+          <EmergencyBrake client={client} as="button" />
+          <CampaignFromLink client={client} channels={data?.channels ?? []} />
           <Link to={`/clients/${client.id}/report`} className="btn">
             <FileBarChart size={16} /> Proof-of-publish report
           </Link>
@@ -71,6 +74,7 @@ export function ClientPage() {
         </div>
       </div>
 
+      <EmergencyBrake client={client} as="banner" />
       <div className="grid two" style={{ alignItems: 'start' }}>
         <div className="stack">
           <section className="card">
@@ -166,6 +170,8 @@ export function ClientPage() {
           <PostingTimes client={client} />
           <LinkTracking client={client} />
           <ClientSettings />
+          <BrandGuard client={client} />
+          <ClientWhatsApp client={client} />
           <BrandVoice />
         </div>
       </div>

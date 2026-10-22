@@ -89,6 +89,8 @@ Without SMTP settings, emails (including sign-in codes) are printed to the conso
    - `CRON_SECRET`: another random string.
    - `EMAIL_FROM` and the `SMTP_*` variables (`smtp.hostinger.com`, port 465). In production, the app won't start if any of these are missing.
    - `ANTHROPIC_API_KEY` (optional) switches on the writing assistant. Create a key at console.anthropic.com. The assistant uses Claude Opus 5.5; set `AI_MODEL` to use a different model.
+   - `ADMIN_EMAILS`: the Surecast team emails that get the admin panel at `/admin` as superadmins. Add other staff with narrower roles from the panel.
+   - `CHITTHI_URL` (optional) only if Chitthi runs somewhere other than `https://app.chitthi.live`.
 5. **Cron job:** in hPanel > Advanced > Cron Jobs, add a job that runs every minute:
    ```
    curl -fsS "https://app.surecast.live/v1/cron/tick?key=YOUR_CRON_SECRET" > /dev/null
