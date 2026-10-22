@@ -1,10 +1,10 @@
 import './env.js';
 
 import { all, db, migrate, run } from '../src/db.js';
-import { overrideAdapter, PublishError, type Adapter, type PublishInput } from '../src/platforms/index.js';
+import { overrideAdapter, PublishError, type Adapter, type PostMetrics, type PublishInput } from '../src/platforms/index.js';
 import { encrypt, newId, token } from '../src/util.js';
 
-const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage', 'snippets', 'feeds'];
+const TABLES = ['users', 'login_codes', 'sessions', 'workspaces', 'members', 'clients', 'channels', 'media', 'posts', 'post_targets', 'attempts', 'post_comments', 'alerts', 'oauth_states', 'oauth_apps', 'pending_connections', 'api_keys', 'webhooks', 'scheduler_runs', 'ai_usage', 'snippets', 'feeds', 'channel_stats', 'links', 'link_clicks', 'bio_pages'];
 
 export async function resetDb() {
   await migrate();
@@ -19,6 +19,8 @@ export function fakeAdapter(platform = 'bluesky') {
   const published: PublishInput[] = [];
   const replyQueue: Behaviour[] = [];
   const replies: { parentId: string; rootId: string; text: string }[] = [];
+  const stats: Record<string, PostMetrics> = {};
+  const audience = { followers: 100 as number | null };
   let checkResult: Behaviour = 'ok';
   const a: Adapter = {
     platform: platform as Adapter['platform'],
@@ -55,6 +57,12 @@ export function fakeAdapter(platform = 'bluesky') {
       replies.push({ ...target, text });
       return { remoteId: `c${replies.length}`, url: null };
     },
+    async metrics(_ch, ids) {
+      return Object.fromEntries(ids.filter((id) => stats[id]).map((id) => [id, stats[id]]));
+    },
+    async followers() {
+      return audience.followers;
+    },
   };
   overrideAdapter(a);
   return {
@@ -62,6 +70,8 @@ export function fakeAdapter(platform = 'bluesky') {
     published,
     replyQueue,
     replies,
+    stats,
+    audience,
     setCheck: (b: Behaviour) => (checkResult = b),
   };
 }

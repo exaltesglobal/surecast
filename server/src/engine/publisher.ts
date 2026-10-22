@@ -16,6 +16,8 @@ import { channelCtx, channelFailed, channelOk, checkChannel, getChannel, sweepCh
 import { contentIssues, mediaFiles, mediaMeta } from './content.js';
 import { checkFeeds } from './feeds.js';
 import { followUpsFor, runFollowUps } from './followups.js';
+import { prepareLinks } from './links.js';
+import { collectStats } from './metrics.js';
 import { emitEvent } from './webhooks.js';
 
 export type TargetRow = Row & {
@@ -159,7 +161,7 @@ export async function publishTarget(targetId: string, now = new Date()): Promise
   const started = Date.now();
   const clock = () => new Date(now.getTime() + Date.now() - started);
   const t = (await one<TargetRow>('SELECT * FROM post_targets WHERE id = ?', [targetId]))!;
-  const { post, channel, meta, text } = await context(t);
+  const { post, channel, meta, text: written } = await context(t);
   if (!channel) {
     await fail(t, post, null, { code: 'channel_removed', message: 'The channel was removed', hint: 'Pick another channel for this post.' }, now);
     return true;
@@ -193,6 +195,8 @@ export async function publishTarget(targetId: string, now = new Date()): Promise
     return true;
   }
 
+  // Short links and UTM tags, when the client has them on. Retries reuse the same short links.
+  const text = await prepareLinks(written, { workspaceId: t.workspace_id, clientId: post.client_id, postId: post.id, targetId: t.id, platform: channel.platform });
   const issues = contentIssues(a, text, meta);
   if (issues.length) {
     await run("INSERT INTO attempts (id, target_id, number, started_at, finished_at, outcome, error_code, message) VALUES (?, ?, ?, ?, ?, 'permanent_error', 'invalid_content', ?)", [
@@ -402,6 +406,7 @@ export function tick(source = 'interval', now = () => new Date()): Promise<TickR
     await step('preflight', () => preflight(now()));
     await step('channels', () => sweepChannels(now()));
     await step('feeds', () => checkFeeds(now()));
+    await step('stats', () => collectStats(now()));
     await step('email', () => emailAlerts());
     return { published, source };
   })().finally(() => (running = null));

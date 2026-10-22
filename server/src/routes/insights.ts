@@ -13,7 +13,7 @@ export async function proofReport(clientId: string, month: string) {
   const ws = await one<{ name: string }>('SELECT name FROM workspaces WHERE id = ?', [client.workspace_id]);
   const range = monthRange(month, client.timezone);
   const rows = await all(
-    `SELECT t.id, t.status, t.due_at, t.published_at, t.remote_url, t.attempts, t.error_code, t.error_message, COALESCE(t.body_override, p.body) AS text,
+    `SELECT t.id, t.status, t.due_at, t.published_at, t.remote_url, t.attempts, t.likes, t.comments, t.shares, t.views, t.clicks, t.error_code, t.error_message, COALESCE(t.body_override, p.body) AS text,
             c.platform, c.name AS channel_name, c.handle AS channel_handle
      FROM post_targets t JOIN posts p ON p.id = t.post_id LEFT JOIN channels c ON c.id = t.channel_id
      WHERE p.client_id = ? AND t.status IN ('published', 'failed') AND COALESCE(t.published_at, t.due_at) >= ? AND COALESCE(t.published_at, t.due_at) < ?
@@ -35,6 +35,10 @@ export async function proofReport(clientId: string, month: string) {
       attempts: r.attempts,
       text: String(r.text ?? '').slice(0, 280),
       error: r.error_code ? r.error_message : null,
+      likes: r.likes as number | null,
+      comments: r.comments as number | null,
+      shares: r.shares as number | null,
+      clicks: Number(r.clicks ?? 0),
     };
   });
   const published = items.filter((i) => i.status === 'published');
@@ -50,6 +54,8 @@ export async function proofReport(clientId: string, month: string) {
       onTime: onTime.length,
       successRate: items.length ? Math.round((published.length / items.length) * 1000) / 10 : null,
       retried: published.filter((i) => i.attempts > 1).length,
+      engagement: published.reduce((n, i) => n + (i.likes ?? 0) + (i.comments ?? 0) + (i.shares ?? 0), 0),
+      clicks: published.reduce((n, i) => n + i.clicks, 0),
     },
     items,
     generatedAt: new Date(),

@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Sun, Users } from 'lucide-react';
+import { BarChart3, Bell, CalendarDays, LayoutDashboard, ListChecks, LogOut, Menu, Moon, PenSquare, Settings, Sun, Users } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
@@ -94,6 +94,9 @@ export function Shell() {
             </NavItem>
             <NavItem to="/posts" icon={<ListChecks size={18} />}>
               Posts
+            </NavItem>
+            <NavItem to="/analytics" icon={<BarChart3 size={18} />}>
+              Analytics
             </NavItem>
             <NavItem to="/clients" icon={<Users size={18} />}>
               Clients

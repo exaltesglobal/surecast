@@ -7,6 +7,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, one, run } from '../db.js';
 import { adapter, adapters } from '../platforms/index.js';
+import { analytics } from './analytics.js';
 
 export type Voice = { description: string; audience: string; dos: string; donts: string; examples: string; language: string };
 export const EMPTY_VOICE: Voice = { description: '', audience: '', dos: '', donts: '', examples: '', language: '' };
@@ -399,4 +400,38 @@ export function cleanVoice(v: unknown): Voice {
   const src = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
   const field = (k: keyof Voice, max: number) => (typeof src[k] === 'string' ? (src[k] as string).trim().slice(0, max) : '');
   return { description: field('description', 1000), audience: field('audience', 500), dos: field('dos', 1000), donts: field('donts', 1000), examples: field('examples', 6000), language: field('language', 40) };
+}
+
+/** A plain-language read of a period's results, for the agency and to paste into client reports. */
+export async function explainResults(workspaceId: string, b: Record<string, any>) {
+  const ctx = await context(workspaceId, b.clientId);
+  const a = await analytics(workspaceId, { clientId: b.clientId || undefined, days: Number(b.days) || 30 });
+  if (!a.summary.posts) throw new HttpError(422, 'There are no published posts in this period to explain yet.');
+  const facts = {
+    period_days: a.days,
+    totals: a.summary,
+    previous_period: a.previous,
+    by_network: a.networks,
+    top_posts: a.top.slice(0, 5).map((t) => ({ network: t.platform, text: t.text.slice(0, 200), likes: t.likes, comments: t.comments, shares: t.shares, clicks: t.clicks })),
+    followers: a.followers.map((f) => ({ network: f.platform, name: f.name, followers: f.followers, change: f.change })),
+    best_slots: a.heatmap.cells
+      .filter((c) => c.posts >= 2)
+      .sort((x, y) => y.score - x.score)
+      .slice(0, 3)
+      .map((c) => ({ weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][c.day], hour: c.hour, posts: c.posts, score_vs_channel_average: c.score })),
+  };
+  const data = await call(workspaceId, {
+    task: 'explain',
+    system: system(ctx, 'Now you are acting as the agency\'s social media analyst, not as the brand.'),
+    content: text(
+      'Explain these social media results in plain language for a busy agency owner, who may paste it into a client report. ' +
+        'Use only the numbers given; never invent figures, causes you cannot see in the data, or benchmarks. Engagement means likes + comments + shares; clicks are link clicks. ' +
+        'If a number is null or zero because the network does not report it, say nothing about it. Compare with the previous period only where it is meaningful. ' +
+        'Give a one-sentence headline, up to 3 wins, up to 3 things to watch, and up to 3 concrete next steps (for example what to post more of, or when).\n\n' +
+        `<source>\n${JSON.stringify(facts)}\n</source>`,
+    ),
+    schema: obj({ headline: STR, wins: STRS, watch: STRS, next: STRS }),
+    effort: 'medium',
+  });
+  return data as { headline: string; wins: string[]; watch: string[]; next: string[] };
 }

@@ -270,4 +270,58 @@ export const MIGRATIONS: string[][] = [
       KEY idx_feeds_check (active, last_checked_at)
     ) ${T}`,
   ],
+  [
+    // Engagement numbers and link clicks per post-to-channel.
+    `ALTER TABLE post_targets ADD COLUMN likes INT NULL, ADD COLUMN comments INT NULL, ADD COLUMN shares INT NULL, ADD COLUMN views INT NULL,
+      ADD COLUMN clicks INT NOT NULL DEFAULT 0, ADD COLUMN metrics_at DATETIME(3) NULL, ADD KEY idx_targets_metrics (status, published_at)`,
+    // Follower counts, one row per channel per day.
+    `ALTER TABLE channels ADD COLUMN followers INT NULL, ADD COLUMN followers_at DATETIME(3) NULL`,
+    `CREATE TABLE channel_stats (
+      channel_id VARCHAR(24) NOT NULL,
+      day DATE NOT NULL,
+      followers INT NOT NULL,
+      PRIMARY KEY (channel_id, day)
+    ) ${T}`,
+    // Short links. scope is the target (or bio page) the link belongs to, so retries reuse the same code.
+    `CREATE TABLE links (
+      code VARCHAR(16) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      client_id VARCHAR(24) NOT NULL,
+      post_id VARCHAR(24) NULL,
+      target_id VARCHAR(24) NULL,
+      scope VARCHAR(48) NOT NULL,
+      platform VARCHAR(16) NULL,
+      url VARCHAR(2000) NOT NULL,
+      url_hash CHAR(64) NOT NULL,
+      clicks INT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL,
+      UNIQUE KEY uq_links_scope (scope, url_hash),
+      KEY idx_links_client (client_id)
+    ) ${T}`,
+    `CREATE TABLE link_clicks (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(16) NOT NULL,
+      client_id VARCHAR(24) NOT NULL,
+      clicked_at DATETIME(3) NOT NULL,
+      referrer VARCHAR(255) NULL,
+      KEY idx_clicks_client (client_id, clicked_at),
+      KEY idx_clicks_code (code)
+    ) ${T}`,
+    // Link tracking and UTM settings per client.
+    `ALTER TABLE clients ADD COLUMN link_settings TEXT NULL`,
+    // Link-in-bio pages.
+    `CREATE TABLE bio_pages (
+      client_id VARCHAR(24) PRIMARY KEY,
+      workspace_id VARCHAR(24) NOT NULL,
+      slug VARCHAR(64) NOT NULL,
+      title VARCHAR(120) NOT NULL,
+      bio VARCHAR(500) NOT NULL DEFAULT '',
+      links TEXT NOT NULL,
+      show_posts TINYINT NOT NULL DEFAULT 1,
+      accent VARCHAR(16) NOT NULL DEFAULT '#FF7A1A',
+      published TINYINT NOT NULL DEFAULT 1,
+      updated_at DATETIME(3) NOT NULL,
+      UNIQUE KEY uq_bio_slug (slug)
+    ) ${T}`,
+  ],
 ];

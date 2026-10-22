@@ -6,7 +6,7 @@
 import { config } from '../config.js';
 import { http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter } from './types.js';
+import { PublishError, type Adapter, type PostMetrics } from './types.js';
 
 type Creds = { accessToken: string; personUrn: string };
 
@@ -88,5 +88,25 @@ export const linkedin: Adapter = {
       json: { actor: c.personUrn, object: target.rootId, message: { text } },
     });
     return { remoteId: data.commentUrn ?? data.id ?? '', url: `https://www.linkedin.com/feed/update/${target.rootId}/` };
+  },
+  async metrics(ch, urns) {
+    // Reading reactions needs LinkedIn's Community Management API. Without it LinkedIn answers 403,
+    // and the posts simply show no numbers.
+    const c = ch.credentials as Creds;
+    const out: Record<string, PostMetrics> = {};
+    for (const urn of urns) {
+      try {
+        const { data } = await http<{ likesSummary?: { totalLikes?: number }; commentsSummary?: { aggregatedTotalComments?: number } }>(
+          'LinkedIn',
+          `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(urn)}`,
+          { headers: rest(c.accessToken) },
+        );
+        out[urn] = { likes: data.likesSummary?.totalLikes ?? 0, comments: data.commentsSummary?.aggregatedTotalComments ?? 0, shares: 0, views: null };
+      } catch (e) {
+        if (e instanceof PublishError && (e.httpStatus === 403 || e.httpStatus === 404)) continue;
+        throw e;
+      }
+    }
+    return out;
   },
 };

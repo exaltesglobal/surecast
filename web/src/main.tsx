@@ -7,6 +7,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Shell } from './components/Layout';
 import { ToastProvider } from './components/ui';
 import { AlertsPage } from './pages/Alerts';
+import { AnalyticsPage } from './pages/Analytics';
 import { CalendarPage } from './pages/Calendar';
 import { ClientPage } from './pages/Client';
 import { ClientsPage } from './pages/Clients';
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Dashboard /> },
       { path: '/calendar', element: <CalendarPage /> },
+      { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/posts', element: <PostsPage /> },
       { path: '/posts/new', element: <Composer /> },
       { path: '/posts/import', element: <ImportPage /> },
