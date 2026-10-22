@@ -24,6 +24,8 @@ type Item = {
   status: 'open' | 'done';
   isReplyToComment: boolean;
   isDirect?: boolean;
+  isReview?: boolean;
+  rating?: number | null;
   reply: { text: string; at: string; by: string | null } | null;
   replyError: string | null;
 };
@@ -163,8 +165,16 @@ function InboxCard({ item: i, onChange, onStatus }: { item: Item; onChange: () =
           )}
         </div>
       </div>
-      <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{i.text}</p>
-      {i.isDirect ? (
+      {i.isReview && i.rating && (
+        <span className="stars" aria-label={`${i.rating} out of 5 stars`}>
+          {'★'.repeat(i.rating)}
+          <span className="muted">{'★'.repeat(5 - i.rating)}</span>
+        </span>
+      )}
+      {(i.text || !i.isReview) && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{i.text}</p>}
+      {i.isReview ? (
+        <span className="tiny muted">Google review of {i.channelName}. Your reply is public.</span>
+      ) : i.isDirect ? (
         <span className="tiny muted">WhatsApp message from {i.author.handle}. Free replies work for 24 hours after their last message.</span>
       ) : (
         <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>

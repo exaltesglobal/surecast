@@ -4,9 +4,29 @@
 import { config } from '../config.js';
 import { http } from './http.js';
 import { codepoints, URL_RE } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type RemoteReview } from './types.js';
 
 type Creds = { accessToken: string; refreshToken: string; account: string; location: string };
+
+const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+
+type Review = {
+  name: string;
+  reviewId: string;
+  reviewer?: { displayName?: string; profilePhotoUrl?: string; isAnonymous?: boolean };
+  starRating?: string;
+  comment?: string;
+  createTime: string;
+  updateTime?: string;
+  reviewReply?: { comment: string; updateTime: string };
+};
+
+/** Google sends a translation along with the original; keep only what the reviewer wrote. */
+export function reviewText(comment: string | undefined) {
+  if (!comment) return '';
+  const original = comment.match(/\(Original\)\s*([\s\S]*)$/);
+  return (original ? original[1] : comment.replace(/\s*\(Translated by Google\)[\s\S]*$/, '')).trim();
+}
 
 async function token(ch: ChannelCtx) {
   const c = ch.credentials as Creds;
@@ -97,5 +117,32 @@ export const google: Adapter = {
       json: body,
     });
     return { remoteId: data.name, url: data.searchUrl ?? null };
+  },
+  // Updates on Google cannot be commented on; the inbox gets the location's reviews instead.
+  async reviews(ch) {
+    const t = await token(ch);
+    const c = ch.credentials as Creds;
+    const { data } = await http<{ reviews?: Review[] }>('Google', `https://mybusiness.googleapis.com/v4/${c.account}/${c.location}/reviews?pageSize=50&orderBy=updateTime%20desc`, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    return (data.reviews ?? []).map(
+      (r): RemoteReview => ({
+        id: r.name,
+        parentId: r.name,
+        authorName: r.reviewer?.isAnonymous ? 'A Google user' : (r.reviewer?.displayName ?? 'A Google user'),
+        authorHandle: '',
+        authorAvatar: r.reviewer?.profilePhotoUrl ?? null,
+        text: reviewText(r.comment),
+        createdAt: new Date(r.createTime),
+        url: null,
+        rating: STARS[r.starRating ?? ''] ?? null,
+        reply: r.reviewReply ? { text: r.reviewReply.comment, at: new Date(r.reviewReply.updateTime) } : null,
+      }),
+    );
+  },
+  async answer(ch, review, text) {
+    const t = await token(ch);
+    await http('Google', `https://mybusiness.googleapis.com/v4/${review.id}/reply`, { method: 'PUT', headers: { Authorization: `Bearer ${t}` }, json: { comment: text } });
+    return { remoteId: `${review.id}/reply`, url: null };
   },
 };

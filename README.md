@@ -34,7 +34,7 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 | X | Built. Switched on when `X_CLIENT_ID` and `X_CLIENT_SECRET` are set; needs a paid API plan (Basic or higher for inbox replies) |
 | Threads | Built. Switched on when `THREADS_APP_ID` and `THREADS_APP_SECRET` are set (a Meta app with the Threads use case) |
 | Pinterest | Built. Switched on when `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` are set; each board is a channel, every Pin needs an image |
-| Google Business Profile | Built. Switched on when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; Google must grant Business Profile API access |
+| Google Business Profile | Built: updates, plus reviews in the inbox with replies. Switched on when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; Google must grant Business Profile API access |
 | YouTube | Built. Switched on by the same `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as Google Business; each YouTube channel is a channel, every post is one video (first line = title) |
 | TikTok | Built. Switched on when `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET` are set; every post is one video, private until TikTok audits the app |
 

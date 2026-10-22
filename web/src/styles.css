@@ -344,3 +344,6 @@ textarea.input { resize: vertical; min-height: 140px; line-height: 1.5; }
 .method.get { color: #1d6fd8; } .method.post { color: #15803d; } .method.patch, .method.put { color: #b45309; } .method.delete { color: var(--error); }
 code.inline, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 pre.code { background: #0f1115; color: #e5e7eb; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 0; }
+
+.stars { color: #f5a623; letter-spacing: 1px; font-size: 15px; }
+.stars .muted { color: var(--line); }
