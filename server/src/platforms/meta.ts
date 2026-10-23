@@ -6,7 +6,7 @@
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter, type Candidate, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
+import { PublishError, type Adapter, type Candidate, type ChannelCtx, type PostMetrics, type RemoteComment, type RemoteThreadComment } from './types.js';
 
 type Creds = { pageToken: string; pageId: string; igUserId?: string };
 
@@ -157,6 +157,34 @@ export const facebook: Adapter = {
     }
     return out;
   },
+  async recentComments(ch) {
+    const c = ch.credentials as Creds;
+    type C = { id: string; message?: string; created_time: string; permalink_url?: string; from?: { id: string; name: string }; parent?: { id: string } };
+    const r = await graph<{ data: { id: string; comments?: { data: C[] } }[] }>(
+      `${G}/${c.pageId}/published_posts?limit=25&fields=id,comments.filter(stream).order(reverse_chronological).limit(100){id,message,created_time,permalink_url,from,parent}&access_token=${c.pageToken}`,
+    );
+    const out: RemoteThreadComment[] = [];
+    for (const post of r.data) {
+      const all = post.comments?.data ?? [];
+      const answered = (x: C) => all.some((y) => y.from?.id === c.pageId && (y.parent?.id === x.id || y.parent?.id === x.parent?.id) && y.created_time > x.created_time);
+      for (const x of all) {
+        if (x.from?.id === c.pageId) continue;
+        out.push({
+          id: x.id,
+          parentId: x.parent?.id ?? post.id,
+          rootId: post.id,
+          answered: answered(x),
+          authorName: x.from?.name ?? 'Facebook user',
+          authorHandle: '',
+          authorAvatar: null,
+          text: x.message ?? '',
+          createdAt: new Date(x.created_time),
+          url: x.permalink_url ?? null,
+        });
+      }
+    }
+    return out;
+  },
   async answer(ch, comment, text) {
     const c = ch.credentials as Creds;
     const r = await graph<{ id: string }>(`${G}/${comment.id}/comments`, { json: { message: text, access_token: c.pageToken } });
@@ -253,9 +281,35 @@ export const instagram: Adapter = {
     }
     return out;
   },
+  async recentComments(ch) {
+    const c = ch.credentials as Creds;
+    type C = { id: string; text?: string; timestamp: string; username?: string; from?: { id: string; username: string }; replies?: { data: C[] } };
+    if (!c.igUserId) return [];
+    const r = await graph<{ data: { id: string; permalink?: string; comments?: { data: C[] } }[] }>(
+      `${G}/${c.igUserId}/media?limit=25&fields=id,permalink,comments.limit(50){id,text,timestamp,username,from,replies{id,text,timestamp,username,from}}&access_token=${c.pageToken}`,
+    );
+    const out: RemoteThreadComment[] = [];
+    const mine = (x: C) => x.from?.id === c.igUserId;
+    for (const media of r.data) {
+      for (const top of media.comments?.data ?? []) {
+        const replies = top.replies?.data ?? [];
+        const answeredAfter = (at: string) => replies.some((y) => mine(y) && y.timestamp > at);
+        const add = (x: C, parentId: string) => {
+          if (mine(x)) return;
+          const who = x.from?.username ?? x.username ?? 'instagram user';
+          out.push({ id: x.id, parentId, rootId: media.id, answered: answeredAfter(x.timestamp), authorName: who, authorHandle: `@${who}`, authorAvatar: null, text: x.text ?? '', createdAt: new Date(x.timestamp), url: media.permalink ?? null });
+        };
+        add(top, media.id);
+        for (const y of replies) add(y, top.id);
+      }
+    }
+    return out;
+  },
   async answer(ch, comment, text) {
     const c = ch.credentials as Creds;
-    const r = await graph<{ id: string }>(`${G}/${comment.id}/replies`, { json: { message: text, access_token: c.pageToken } });
+    // Instagram only takes replies on top-level comments, so a reply to a reply goes under its thread.
+    const target = comment.parentId && comment.parentId !== comment.rootId ? comment.parentId : comment.id;
+    const r = await graph<{ id: string }>(`${G}/${target}/replies`, { json: { message: text, access_token: c.pageToken } });
     return { remoteId: r.id, url: null };
   },
 };

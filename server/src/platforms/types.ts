@@ -110,12 +110,20 @@ export interface Adapter {
    * Answers a comment from the inbox. Networks without this answer with reply(), using the
    * comment as the parent.
    */
-  answer?(ch: ChannelCtx, comment: { id: string; rootId: string }, text: string, idempotencyKey: string): Promise<PublishResult>;
+  answer?(ch: ChannelCtx, comment: { id: string; rootId: string; parentId?: string }, text: string, idempotencyKey: string): Promise<PublishResult>;
+  /**
+   * The newest comments across the whole account, including posts made outside Surecast. When a
+   * network has this, the inbox reads it per channel instead of calling comments() per post.
+   */
+  recentComments?(ch: ChannelCtx): Promise<RemoteThreadComment[]>;
   /** Reviews of the account itself (not of a post), newest first. Answered with answer(). */
   reviews?(ch: ChannelCtx): Promise<RemoteReview[]>;
 }
 
 export type RemoteComment = { id: string; parentId: string; authorName: string; authorHandle: string; authorAvatar: string | null; text: string; createdAt: Date; url: string | null };
+
+/** A comment found account-wide: rootId is the post it sits under, answered means the account already replied. */
+export type RemoteThreadComment = RemoteComment & { rootId: string; answered: boolean };
 
 /** A customer review, with the business's existing reply if it already has one. */
 export type RemoteReview = RemoteComment & { rating: number | null; reply: { text: string; at: Date } | null };

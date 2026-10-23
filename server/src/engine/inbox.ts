@@ -5,6 +5,7 @@ import { HttpError, type AuthUser } from '../auth.js';
 import { all, one, run } from '../db.js';
 import { adapter, adapters, PublishError } from '../platforms/index.js';
 import { addMs, clip, minutes, newId } from '../util.js';
+import { raiseAlert, resolveAlerts } from './alerts.js';
 import { channelCtx, channelFailed, getChannel, type ChannelRow } from './channels.js';
 import { replyOnWhatsApp } from './chitthi.js';
 
@@ -28,11 +29,12 @@ export async function collectInbox(now = new Date()) {
     if (!ch) continue;
     const a = adapter(ch.platform);
     let comments: Awaited<ReturnType<NonNullable<typeof a.comments>>> = {};
-    if (a.comments) {
+    if (a.comments && !a.recentComments) {
       try {
         comments = await a.comments(channelCtx(ch), targets.map((t) => t.remote_id));
+        await readOk(ch);
       } catch (e) {
-        if (!(e instanceof PublishError)) console.error(`Reading comments for channel ${channelId} failed`, e);
+        await readFailed(ch, e, 'comments');
         continue;
       }
     }
@@ -91,8 +93,9 @@ export async function collectReviews(now = new Date()) {
     let reviews;
     try {
       reviews = await adapter(ch.platform).reviews!(channelCtx(ch));
+      await readOk(ch);
     } catch (e) {
-      if (!(e instanceof PublishError)) console.error(`Reading reviews for channel ${id} failed`, e);
+      await readFailed(ch, e, 'reviews');
       continue;
     }
     const known = new Set(
@@ -132,11 +135,104 @@ export async function collectReviews(now = new Date()) {
   return found;
 }
 
+/**
+ * Comments across whole channels, every 10 minutes, for networks that can list them
+ * account-wide (YouTube). This covers videos posted outside Surecast too. Comments the channel
+ * already answered come in as done.
+ */
+export async function collectChannelComments(now = new Date()) {
+  const platforms = adapters()
+    .filter((a) => a.recentComments)
+    .map((a) => a.platform);
+  if (!platforms.length) return 0;
+  const due = await all<{ id: string }>(
+    `SELECT id FROM channels WHERE platform IN (?) AND status <> 'disconnected' AND (comments_checked_at IS NULL OR comments_checked_at < ?) ORDER BY comments_checked_at IS NULL DESC, comments_checked_at LIMIT 50`,
+    [platforms, addMs(now, -minutes(10))],
+  );
+  let found = 0;
+  for (const { id } of due) {
+    const ch = await getChannel(id);
+    if (!ch) continue;
+    await run('UPDATE channels SET comments_checked_at = ? WHERE id = ?', [now, id]);
+    let comments;
+    try {
+      comments = await adapter(ch.platform).recentComments!(channelCtx(ch));
+      await readOk(ch);
+    } catch (e) {
+      await readFailed(ch, e, 'comments');
+      continue;
+    }
+    if (!comments.length) continue;
+    // Link comments to the Surecast post they sit under, when there is one.
+    const roots = [...new Set(comments.map((c) => clip(c.rootId, 190)!))];
+    const targets = new Map(
+      (await all<{ id: string; post_id: string; remote_id: string }>('SELECT id, post_id, remote_id FROM post_targets WHERE channel_id = ? AND remote_id IN (?)', [id, roots])).map((t) => [t.remote_id, t]),
+    );
+    for (const cm of comments) {
+      if (!cm.id) continue;
+      const t = targets.get(clip(cm.rootId, 190)!);
+      found += await run(
+        `INSERT IGNORE INTO inbox_items (id, workspace_id, client_id, channel_id, target_id, post_id, platform, remote_id, parent_remote_id, root_remote_id, author_name, author_handle, author_avatar, body, url, received_at, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newId('inb'),
+          ch.workspace_id,
+          ch.client_id,
+          id,
+          t?.id ?? null,
+          t?.post_id ?? null,
+          ch.platform,
+          clip(cm.id, 190),
+          clip(cm.parentId, 190),
+          clip(cm.rootId, 190),
+          clip(cm.authorName, 190) ?? '',
+          clip(cm.authorHandle, 190) ?? '',
+          clip(cm.authorAvatar, 500),
+          cm.text.slice(0, 10_000),
+          clip(cm.url, 500),
+          cm.createdAt,
+          cm.answered ? 'done' : 'open',
+          now,
+        ],
+      );
+    }
+  }
+  return found;
+}
+
+const readKey = (ch: ChannelRow) => `channel:${ch.id}:inbox`;
+
+async function readOk(ch: ChannelRow) {
+  await resolveAlerts(ch.workspace_id, [readKey(ch)]);
+}
+
+/** A channel whose comments or reviews cannot be read raises one alert, instead of failing silently. */
+async function readFailed(ch: ChannelRow, e: unknown, what: 'comments' | 'reviews') {
+  if (!(e instanceof PublishError)) {
+    console.error(`Reading ${what} for channel ${ch.id} failed`, e);
+    return;
+  }
+  if (e.kind === 'auth') return channelFailed(ch, e);
+  if (e.kind === 'temporary') return;
+  const label = adapter(ch.platform).label;
+  await raiseAlert({
+    workspaceId: ch.workspace_id,
+    key: readKey(ch),
+    kind: 'inbox_read_failed',
+    severity: 'warning',
+    title: `Surecast cannot read ${what} from ${label} channel "${ch.name}"`,
+    detail: `${e.message}. ${e.hint}`,
+    clientId: ch.client_id,
+    channelId: ch.id,
+  });
+}
+
 let lastRun = 0;
 export async function inboxTick(now = new Date()) {
   if (Date.now() - lastRun < minutes(2)) return;
   lastRun = Date.now();
   await collectInbox(now);
+  await collectChannelComments(now);
   await collectReviews(now);
 }
 
@@ -184,7 +280,7 @@ function itemJson(r: Record<string, any>) {
     /** WhatsApp chats are direct messages, not comments under a post. */
     isDirect: r.platform === 'whatsapp',
     /** A review of the business (1 to 5 stars), not a comment under a post. */
-    isReview: r.platform !== 'whatsapp' && !r.post_id,
+    isReview: r.platform === 'google',
     rating: r.rating ?? null,
     reply: r.replied_at ? { text: r.reply_text, at: r.replied_at, by: r.replied_by_name } : null,
     replyError: r.reply_error,
@@ -228,7 +324,7 @@ export async function replyToItem(workspaceId: string, user: AuthUser | null, id
   try {
     const key = `inbox-${item.id}`;
     const r = a.answer
-      ? await a.answer(channelCtx(ch), { id: item.remote_id, rootId: item.root_remote_id }, body, key)
+      ? await a.answer(channelCtx(ch), { id: item.remote_id, rootId: item.root_remote_id, parentId: item.parent_remote_id }, body, key)
       : await a.reply!(channelCtx(ch), { parentId: item.remote_id, rootId: item.root_remote_id }, body, key);
     await run("UPDATE inbox_items SET status = 'done', reply_text = ?, reply_remote_id = ?, replied_at = ?, replied_by = ?, reply_error = NULL WHERE id = ?", [
       body,
