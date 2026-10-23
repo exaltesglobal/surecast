@@ -10,7 +10,7 @@ export const driveRoutes = new Hono<Env>()
     const q = c.req.query();
     if (q.error || !q.code || !q.state) return c.redirect(`/settings?driveError=${encodeURIComponent(q.error_description || q.error || 'Connection was cancelled.')}#drive`);
     try {
-      await finishDrive(q.state, q.code);
+      await finishDrive(q.state, q.code, c.get('user')?.id ?? null);
       return c.redirect('/settings?drive=connected#drive');
     } catch (e) {
       return c.redirect(`/settings?driveError=${encodeURIComponent((e as Error).message)}#drive`);

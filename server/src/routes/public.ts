@@ -1,6 +1,8 @@
 // Routes that need no sign-in: the client approval portal and shared reports (both
 // unlocked by the client's secret link), public media for platforms that fetch images by
 // URL, the cron wake-up, and the health check.
+import { createHash, timingSafeEqual } from 'node:crypto';
+
 import { Hono } from 'hono';
 
 import { HttpError, type Env } from '../auth.js';
@@ -33,7 +35,7 @@ export const publicRoutes = new Hono<Env>()
   // hPanel cron: curl -fsS "https://app.surecast.live/v1/cron/tick?key=CRON_SECRET"
   .on(['GET', 'POST'], '/cron/tick', async (c) => {
     const key = c.req.query('key') ?? c.req.header('X-Cron-Key') ?? '';
-    if (!config.cronSecret || key !== config.cronSecret) throw new HttpError(403, 'Bad cron key.');
+    if (!config.cronSecret || !sameSecret(key, config.cronSecret)) throw new HttpError(403, 'Bad cron key.');
     const result = await tick('cron');
     return c.json({ ok: true, ...result });
   })
@@ -79,3 +81,9 @@ export const mediaRoutes = new Hono().get('/m/:key', async (c) => {
   if (!m) return c.text('Not found', 404);
   return c.body(new Uint8Array(await mediaData(m.id)), 200, { 'Content-Type': m.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
 });
+
+/** Compares secrets without leaking how much of the guess was right. */
+function sameSecret(a: string, b: string) {
+  const h = (v: string) => createHash('sha256').update(v).digest();
+  return timingSafeEqual(h(a), h(b));
+}

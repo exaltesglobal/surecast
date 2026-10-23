@@ -460,4 +460,9 @@ export const MIGRATIONS: string[][] = [
     // Comments on every video of a channel (not just Surecast posts) are read per channel.
     `ALTER TABLE channels ADD COLUMN comments_checked_at DATETIME(3) NULL`,
   ],
+  [
+    // Wrong sign-in codes are also counted per hour, across codes, so asking for a new code
+    // does not reset the limit.
+    `ALTER TABLE login_codes ADD COLUMN hour_failures INT NOT NULL DEFAULT 0, ADD COLUMN hour_started_at DATETIME(3) NULL`,
+  ],
 ];

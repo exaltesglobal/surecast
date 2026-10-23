@@ -10,7 +10,7 @@ import { closeDb, one, run } from '../src/db.js';
 import { mediaData, mediaFiles, mediaMeta, storeMedia } from '../src/engine/content.js';
 import { disconnectDrive, finishDrive, getDrive, startDrive } from '../src/engine/drive.js';
 import { savePost } from '../src/engine/posts.js';
-import { hashSecret, newId } from '../src/util.js';
+import { hashSecret, newId, token } from '../src/util.js';
 import { fakeAdapter, resetDb, seed } from './helpers.js';
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(500, 3)]);
@@ -51,7 +51,7 @@ async function connect(wsId: string, userId: string) {
   const url = new URL(await startDrive(wsId, userId));
   assert.match(url.searchParams.get('scope')!, /drive\.file/);
   assert.equal(url.searchParams.get('redirect_uri'), `${config.publicUrl}/v1/oauth/gdrive/callback`);
-  await finishDrive(url.searchParams.get('state')!, 'code1');
+  await finishDrive(url.searchParams.get('state')!, 'code1', userId);
 }
 
 describe('wave 9: media in Google Drive', () => {
@@ -124,7 +124,13 @@ describe('wave 9: media in Google Drive', () => {
     const s = await seed();
     const app = createApp();
     const url = new URL(await startDrive(s.wsId, s.userId));
-    const res = await app.request(`/v1/oauth/gdrive/callback?state=${url.searchParams.get('state')}&code=c`);
+    const state = url.searchParams.get('state');
+    // Only the person who started the connection can finish it.
+    const stranger = await app.request(`/v1/oauth/gdrive/callback?state=${state}&code=c`);
+    assert.match(stranger.headers.get('location')!, /driveError=Sign%20in/);
+    const t = token(32);
+    await run('INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)', [newId('ses'), s.userId, hashSecret(t), new Date(Date.now() + 3_600_000), new Date()]);
+    const res = await app.request(`/v1/oauth/gdrive/callback?state=${state}&code=c`, { headers: { Cookie: `sc_session=${t}` } });
     assert.equal(res.headers.get('location'), '/settings?drive=connected#drive');
     const bad = await app.request('/v1/oauth/gdrive/callback?state=nope&code=c');
     assert.match(bad.headers.get('location')!, /driveError=That%20connection%20link%20expired/);

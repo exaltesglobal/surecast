@@ -74,9 +74,10 @@ export async function startDrive(workspaceId: string, userId: string) {
 }
 
 /** Step 2: Google sends the person back with a code. Saves the connection and makes the folder. */
-export async function finishDrive(stateValue: string, code: string) {
-  const state = await one<{ workspace_id: string; expires_at: Date }>("SELECT workspace_id, expires_at FROM oauth_states WHERE state = ? AND platform = 'gdrive'", [stateValue]);
+export async function finishDrive(stateValue: string, code: string, userId: string | null) {
+  const state = await one<{ workspace_id: string; user_id: string; expires_at: Date }>("SELECT workspace_id, user_id, expires_at FROM oauth_states WHERE state = ? AND platform = 'gdrive'", [stateValue]);
   if (!state || state.expires_at < new Date()) throw new DriveError('That connection link expired. Try connecting again.');
+  if (state.user_id !== userId) throw new DriveError('Sign in to Surecast as the person who started connecting Google Drive, then try again.');
   await run('DELETE FROM oauth_states WHERE state = ?', [stateValue]);
   const tok = (await (
     await google(`https://oauth2.googleapis.com/token`, {

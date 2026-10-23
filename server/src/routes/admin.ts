@@ -37,7 +37,8 @@ const ip = (c: Context) => c.req.header('x-forwarded-for')?.split(',')[0]?.trim(
 
 const staffOnly: MiddlewareHandler<AdminEnv> = async (c, next) => {
   // While viewing as a customer, the admin panel is out of reach: stop viewing first.
-  const role = c.get('impersonatedBy') ? null : await staffRole(c.get('user'));
+  // API keys never reach it either, even one created by a staff member.
+  const role = c.get('impersonatedBy') || c.get('viaApiKey') ? null : await staffRole(c.get('user'));
   if (!role) throw new HttpError(404, 'Not found');
   c.set('staffRole', role);
   return next();

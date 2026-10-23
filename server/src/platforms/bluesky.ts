@@ -1,5 +1,6 @@
 // Bluesky (AT Protocol). Connects with a handle and an app password, which needs no
 // developer app or review. Sessions are refreshed as needed and saved back.
+import { assertPublic } from '../engine/fetch.js';
 import { blobOf, http } from './http.js';
 import { URL_RE, graphemes } from './text.js';
 import { PublishError, type Adapter, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
@@ -89,6 +90,7 @@ export const bluesky: Adapter = {
     ],
     async submit(v) {
       const service = (v.service || 'https://bsky.social').replace(/\/+$/, '');
+      if (v.service) await assertPublic(service);
       const identifier = v.handle.trim().replace(/^@/, '');
       const s = await createSession(service, identifier, v.appPassword.trim());
       let name = s.handle;
