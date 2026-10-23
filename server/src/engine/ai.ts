@@ -469,7 +469,7 @@ export async function suggestReplies(workspaceId: string, itemId: string) {
     });
     return { replies: (data.replies as string[]).slice(0, 3) };
   }
-  if (!item.post_id) {
+  if (item.platform === 'google') {
     // A review of the business on Google. Public, so prospective customers read the answer too.
     const data = await call(workspaceId, {
       task: 'reply',
@@ -494,7 +494,7 @@ export async function suggestReplies(workspaceId: string, itemId: string) {
       `Someone commented on ${ctx.name}'s ${a.label} post. Suggest 3 different short replies from ${ctx.name}, each under ${Math.min(a.limits.maxChars, 280)} characters. ` +
         'Be warm and specific to what they said. Answer questions only with facts found in the post; if the answer is not there, invite them to get in touch instead of guessing. ' +
         'If the comment is rude or spam, suggest calm, short replies or a polite thank-you. No hashtags.\n\n' +
-        `<source>\nPost: ${post?.text ?? ''}\n\nComment from ${item.author_name}: ${item.body}\n</source>`,
+        `<source>\n${post ? `Post: ${post.text}` : 'The post was published outside Surecast, so its text is not available.'}\n\nComment from ${item.author_name}: ${item.body}\n</source>`,
     ),
     schema: obj({ replies: STRS }),
     effort: 'low',

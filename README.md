@@ -19,7 +19,7 @@ Surecast is a social media scheduler for agencies. It's built around one promise
 - **Writing assistant** (AI). Drafts three post options from a short brief, rewrites a post (shorter, punchier, better hook, call to action, translate, or any instruction), adapts one post into a version for each network within its limits, suggests hashtags, writes image alt text, reviews a post for typos, risky claims and leftover placeholders before it goes out, and suggests post ideas. It writes in each client's **brand voice**, which you can describe by hand or have it learn from the client's past posts. It never changes a post on its own: every suggestion has a "Use this" button. Each workspace gets a daily request limit (`AI_DAILY_LIMIT`, default 300).
 - **API keys and signed webhooks**, so scripts and Zapier can schedule posts.
 - **An MCP server**, so AI agents can plan, schedule and report on posts and answer comments.
-- **A unified inbox** for comments and replies from every network, with AI reply suggestions in each client's voice.
+- **A unified inbox** for comments and replies from every network, with AI reply suggestions in each client's voice. YouTube, Facebook and Instagram comments come in from every post on the account, including ones published outside Surecast; other networks cover posts made through Surecast.
 - **Dark mode**, and a layout that works on mobile.
 
 ### Networks

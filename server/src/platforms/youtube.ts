@@ -5,7 +5,7 @@
 import { config } from '../config.js';
 import { blobOf, http } from './http.js';
 import { codepoints } from './text.js';
-import { PublishError, type Adapter, type ChannelCtx, type PostMetrics, type RemoteComment } from './types.js';
+import { PublishError, type Adapter, type ChannelCtx, type PostMetrics, type RemoteComment, type RemoteThreadComment } from './types.js';
 
 type Creds = { accessToken: string; refreshToken: string; channelId: string };
 
@@ -60,6 +60,9 @@ export function videoParts(text: string) {
   const description = clean(lines.slice(1).join('\n')).trim().slice(0, 5000);
   return { title, description };
 }
+
+type CommentSnippet = { authorDisplayName: string; authorProfileImageUrl?: string; authorChannelId?: { value: string }; textOriginal: string; publishedAt: string };
+type Thread = { id: string; snippet: { videoId?: string; topLevelComment: { id: string; snippet: CommentSnippet } }; replies?: { comments: { id: string; snippet: CommentSnippet }[] } };
 
 type Channel = { id: string; snippet: { title: string; customUrl?: string; thumbnails?: { default?: { url: string } } }; statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } };
 
@@ -144,7 +147,7 @@ export const youtube: Adapter = {
     const t = await token(ch);
     const { data } = await yt<{ id: string }>(`${API}/commentThreads?part=snippet`, {
       headers: { Authorization: `Bearer ${t}` },
-      json: { snippet: { videoId: target.rootId, topLevelComment: { snippet: { textOriginal: text } } } },
+      json: { snippet: { channelId: (ch.credentials as Creds).channelId, videoId: target.rootId, topLevelComment: { snippet: { textOriginal: text } } } },
     });
     return { remoteId: data.id, url: `https://www.youtube.com/watch?v=${target.rootId}&lc=${data.id}` };
   },
@@ -198,9 +201,51 @@ export const youtube: Adapter = {
     }
     return out;
   },
+  async recentComments(ch) {
+    const t = await token(ch);
+    const own = (ch.credentials as Creds).channelId;
+    let threads: Thread[];
+    try {
+      const { data } = await yt<{ items?: Thread[] }>(
+        `${API}/commentThreads?part=snippet,replies&allThreadsRelatedToChannelId=${encodeURIComponent(own)}&maxResults=100&order=time&textFormat=plainText`,
+        { headers: { Authorization: `Bearer ${t}` } },
+      );
+      threads = data.items ?? [];
+    } catch (e) {
+      // A channel with comments switched off everywhere answers 403 commentsDisabled.
+      if (e instanceof PublishError && e.body?.error?.errors?.[0]?.reason === 'commentsDisabled') return [];
+      throw e;
+    }
+    const out: RemoteThreadComment[] = [];
+    const mine = (c: { snippet: CommentSnippet }) => c.snippet.authorChannelId?.value === own;
+    for (const th of threads) {
+      const videoId = th.snippet.videoId;
+      if (!videoId) continue;
+      const top = th.snippet.topLevelComment;
+      const replies = th.replies?.comments ?? [];
+      const item = (c: { id: string; snippet: CommentSnippet }, parentId: string, answered: boolean): RemoteThreadComment => ({
+        id: c.id,
+        parentId,
+        rootId: videoId,
+        answered,
+        authorName: c.snippet.authorDisplayName,
+        authorHandle: c.snippet.authorDisplayName,
+        authorAvatar: c.snippet.authorProfileImageUrl ?? null,
+        text: c.snippet.textOriginal,
+        createdAt: new Date(c.snippet.publishedAt),
+        url: `https://www.youtube.com/watch?v=${videoId}&lc=${c.id}`,
+      });
+      const repliedAfter = (at: string) => replies.some((r) => mine(r) && r.snippet.publishedAt > at);
+      if (!mine(top)) out.push(item(top, videoId, repliedAfter(top.snippet.publishedAt)));
+      for (const r of replies) if (!mine(r)) out.push(item(r, top.id, repliedAfter(r.snippet.publishedAt)));
+    }
+    return out;
+  },
   async answer(ch, comment, text) {
     const t = await token(ch);
-    const { data } = await yt<{ id: string }>(`${API}/comments?part=snippet`, { headers: { Authorization: `Bearer ${t}` }, json: { snippet: { parentId: comment.id, textOriginal: text } } });
+    // YouTube threads are one level deep: a reply to a reply goes under the thread's top comment.
+    const parentId = comment.parentId && comment.parentId !== comment.rootId ? comment.parentId : comment.id;
+    const { data } = await yt<{ id: string }>(`${API}/comments?part=snippet`, { headers: { Authorization: `Bearer ${t}` }, json: { snippet: { parentId, textOriginal: text } } });
     return { remoteId: data.id, url: `https://www.youtube.com/watch?v=${comment.rootId}&lc=${data.id}` };
   },
 };

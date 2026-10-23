@@ -176,6 +176,11 @@ function InboxCard({ item: i, onChange, onStatus }: { item: Item; onChange: () =
         <span className="tiny muted">Google review of {i.channelName}. Your reply is public.</span>
       ) : i.isDirect ? (
         <span className="tiny muted">WhatsApp message from {i.author.handle}. Free replies work for 24 hours after their last message.</span>
+      ) : !i.postId ? (
+        <a href={i.url ?? undefined} target="_blank" rel="noreferrer" className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+          <CornerDownRight size={12} />
+          <span className="clamp">{i.isReplyToComment ? 'In a conversation on' : 'On'} a post published outside Surecast</span>
+        </a>
       ) : (
         <Link to={`/posts/${i.postId}`} className="tiny muted row" style={{ gap: 4, flexWrap: 'nowrap' }}>
           <CornerDownRight size={12} />

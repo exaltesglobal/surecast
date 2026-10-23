@@ -456,4 +456,8 @@ export const MIGRATIONS: string[][] = [
     `ALTER TABLE channels ADD COLUMN reviews_checked_at DATETIME(3) NULL`,
     `ALTER TABLE inbox_items ADD COLUMN rating TINYINT NULL`,
   ],
+  [
+    // Comments on every video of a channel (not just Surecast posts) are read per channel.
+    `ALTER TABLE channels ADD COLUMN comments_checked_at DATETIME(3) NULL`,
+  ],
 ];
