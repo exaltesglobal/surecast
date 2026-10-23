@@ -29,14 +29,27 @@ export class HttpError extends Error {
   }
 }
 
+const HOUR = 3_600_000;
+/** Wrong codes allowed per address per hour, across all codes sent in that hour. */
+const MAX_HOURLY_FAILURES = 10;
+const LOCKED = 'Too many wrong codes for this email. Wait an hour, then ask for a new code.';
+const lockedOut = (r: { hour_failures: number; hour_started_at: Date | null }) =>
+  r.hour_failures >= MAX_HOURLY_FAILURES && !!r.hour_started_at && r.hour_started_at.getTime() > Date.now() - HOUR;
+
 export async function requestCode(emailRaw: unknown) {
   if (!isEmail(emailRaw)) throw new HttpError(422, 'Enter a valid email address.');
   const email = emailRaw.trim().toLowerCase();
-  const existing = await one<{ expires_at: Date }>('SELECT expires_at FROM login_codes WHERE email = ?', [email]);
+  const existing = await one<{ expires_at: Date; hour_failures: number; hour_started_at: Date | null }>('SELECT expires_at, hour_failures, hour_started_at FROM login_codes WHERE email = ?', [email]);
   // One code per 30 seconds per address.
   if (existing && existing.expires_at.getTime() - Date.now() > minutes(10) - 30_000) throw new HttpError(429, 'A code was just sent. Wait a moment before asking for another.');
+  if (existing && lockedOut(existing)) throw new HttpError(429, LOCKED);
   const code = randomString(6, '0123456789');
-  await run('REPLACE INTO login_codes (email, code_hash, expires_at, attempts) VALUES (?, ?, ?, 0)', [email, hashSecret(`${email}:${code}`), addMs(new Date(), minutes(10))]);
+  // The hourly failure count survives a new code; only a successful sign-in clears it.
+  await run(
+    `INSERT INTO login_codes (email, code_hash, expires_at, attempts) VALUES (?, ?, ?, 0)
+     ON DUPLICATE KEY UPDATE code_hash = VALUES(code_hash), expires_at = VALUES(expires_at), attempts = 0`,
+    [email, hashSecret(`${email}:${code}`), addMs(new Date(), minutes(10))],
+  );
   await sendEmail(
     email,
     `Your Surecast code: ${code}`,
@@ -48,10 +61,13 @@ export async function requestCode(emailRaw: unknown) {
 export async function verifyCode(c: Context, emailRaw: unknown, codeRaw: unknown, nameRaw: unknown) {
   if (!isEmail(emailRaw) || typeof codeRaw !== 'string') throw new HttpError(422, 'Enter your email and the code we sent.');
   const email = emailRaw.trim().toLowerCase();
-  const row = await one<{ code_hash: string; expires_at: Date; attempts: number }>('SELECT * FROM login_codes WHERE email = ?', [email]);
+  const row = await one<{ code_hash: string; expires_at: Date; attempts: number; hour_failures: number; hour_started_at: Date | null }>('SELECT * FROM login_codes WHERE email = ?', [email]);
+  if (row && lockedOut(row)) throw new HttpError(429, LOCKED);
   if (!row || row.expires_at < new Date() || row.attempts >= 5) throw new HttpError(401, 'That code has expired. Ask for a new one.');
   if (row.code_hash !== hashSecret(`${email}:${codeRaw.trim()}`)) {
-    await run('UPDATE login_codes SET attempts = attempts + 1 WHERE email = ?', [email]);
+    const now = new Date();
+    const fresh = !row.hour_started_at || row.hour_started_at.getTime() < now.getTime() - HOUR;
+    await run('UPDATE login_codes SET attempts = attempts + 1, hour_failures = ?, hour_started_at = ? WHERE email = ?', [fresh ? 1 : row.hour_failures + 1, fresh ? now : row.hour_started_at, email]);
     throw new HttpError(401, 'That code is not right. Check the email and try again.');
   }
   await run('DELETE FROM login_codes WHERE email = ?', [email]);

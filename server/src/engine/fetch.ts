@@ -15,7 +15,8 @@ function privateIp(ip: string) {
   return v6 === '::1' || v6 === '::' || v6.startsWith('fc') || v6.startsWith('fd') || v6.startsWith('fe80');
 }
 
-async function assertPublic(raw: string) {
+/** Checks that a web address is http(s) and points to a public server, not the server's own network. */
+export async function assertPublic(raw: string) {
   let url: URL;
   try {
     url = new URL(raw);

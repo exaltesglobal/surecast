@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 
 import { config, emailConfigured } from './config.js';
 
-let transport: nodemailer.Transporter | null = null;
+let transport: ReturnType<typeof nodemailer.createTransport> | null = null;
 const sent: { to: string; subject: string; text: string }[] = [];
 
 /** The last messages "sent" without SMTP, for tests. */

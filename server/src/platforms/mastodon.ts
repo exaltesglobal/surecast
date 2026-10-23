@@ -2,6 +2,7 @@
 // first time someone connects from it, then uses normal OAuth. Tokens do not expire.
 import { config } from '../config.js';
 import { one, run } from '../db.js';
+import { assertPublic } from '../engine/fetch.js';
 import { blobOf, http } from './http.js';
 import { mastodonLength } from './text.js';
 import { PublishError, type Adapter, type PostMetrics, type RemoteComment } from './types.js';
@@ -60,6 +61,7 @@ export const mastodon: Adapter = {
     fields: [{ name: 'instance', label: 'Server', type: 'text', placeholder: 'mastodon.social', required: true }],
     async start({ state, redirectUri, values }) {
       const instance = normaliseInstance(values.instance ?? '');
+      await assertPublic(instance);
       const app = await appFor(instance, redirectUri);
       const q = new URLSearchParams({ client_id: app.client_id, response_type: 'code', redirect_uri: redirectUri, scope: 'read write', state });
       return { url: `${instance}/oauth/authorize?${q}`, data: { instance } };

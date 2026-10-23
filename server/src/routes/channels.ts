@@ -72,6 +72,9 @@ export const channelRoutes = new Hono<Env>()
     const q = c.req.query();
     const state = q.state ? await one<{ workspace_id: string; client_id: string; user_id: string; platform: string; data: string; expires_at: Date }>('SELECT * FROM oauth_states WHERE state = ?', [q.state]) : null;
     if (!state || state.expires_at < new Date()) return c.redirect('/channels?error=' + encodeURIComponent('That connection link expired. Try connecting again.'));
+    // Only the person who started the connection can finish it, so nobody can trick someone
+    // else into approving their account into a workspace that is not theirs.
+    if (c.get('user')?.id !== state.user_id) return c.redirect('/channels?error=' + encodeURIComponent('Sign in to Surecast as the person who started this connection, then try again.'));
     await run('DELETE FROM oauth_states WHERE state = ?', [q.state]);
     const back = `/clients/${state.client_id}`;
     if (q.error || !q.code) return c.redirect(`${back}?error=${encodeURIComponent(q.error_description || q.error || 'Connection was cancelled.')}`);

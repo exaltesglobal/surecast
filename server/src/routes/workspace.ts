@@ -8,6 +8,7 @@ import { activeAnnouncements, audit, PLANS, staffRole } from '../engine/admin.js
 import { cleanVoice, parseVoice } from '../engine/ai.js';
 import { pauseJson } from '../engine/brake.js';
 import { cleanPhone } from '../engine/chitthi.js';
+import { assertPublic } from '../engine/fetch.js';
 import { cleanGuard, parseGuard } from '../engine/guard.js';
 import { emitEvent } from '../engine/webhooks.js';
 import { emailHtml, sendEmail } from '../mail.js';
@@ -280,6 +281,7 @@ export const workspaceRoutes = new Hono<Env>()
   .post('/webhooks', requireAdmin, async (c) => {
     const url = str((await body(c)).url, 500);
     if (!/^https:\/\/[^\s]+$/.test(url)) throw new HttpError(422, 'Webhook URLs must start with https://');
+    await assertPublic(url);
     const id = newId('whk');
     await run('INSERT INTO webhooks (id, workspace_id, url, secret, created_at) VALUES (?, ?, ?, ?, ?)', [id, c.get('workspaceId'), url, token(24), new Date()]);
     return c.json({ id }, 201);
